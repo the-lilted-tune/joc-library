@@ -153,6 +153,17 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+
+  //TAG HIGHLIGHTING
+function getTagClass(tag) {
+  if (appliedCharacter.value === tag || appliedWordCount.value === tag ) return 'highlight-text'
+  
+  const state = appliedTagStates.value[tag]
+  if (state) return 'highlight-text'
+  
+  return ''
+}
+
 </script>
 
 <template>
@@ -195,6 +206,7 @@ function scrollToTop() {
     <button
       v-for="tag in generalTags"
       :key="tag"
+      class="tag-btn-css"
       :class="{ include: tagStates[tag] === 'include',
                 exclude: tagStates[tag] === 'exclude'
        }"
@@ -225,7 +237,16 @@ function scrollToTop() {
     :key="post.id_string"
   >
     <a :href="post.post_url">{{ getContent(post) }}</a>
-    <p>Tags: {{ post.tags }}</p>
+    <p>Tags:
+      <span
+        v-for="tag in post.tags"
+        :key="tag"
+        :class="getTagClass(tag)"
+        class="post-tag"
+      >
+        #{{ tag }}
+      </span>
+    </p>
   </div>
 
   <!-- Nav Buttons -->
@@ -265,24 +286,53 @@ function scrollToTop() {
 </template>
 
 <style scoped>
+
   button {
     padding: 6px 12px;
     margin: 4px;
     cursor: pointer;
   }
 
-  button.include {
-    background-color:rgb(76, 168, 85);
-    color:rgb(255, 255, 255);
-    padding: 6px 12px;
-    border-radius: 3px;
+  .tag-btn-css {
+    font-family: var(--tag-font);
+    font-size: small;
+    border: none;
+    border-radius: 4px;
+    background-color: var(--nuetral-color);
+    cursor: pointer;
+    transition: box-shadow 0.15s background 0.05s;
+
   }
 
-  button.exclude {
-    background-color:rgb(197, 87, 70);
-    color:rgb(255, 255, 255);
-    padding: 6px 12px;
-    border-radius: 3px;
+  .tag-btn-css:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   }
+
+  .tag-btn-css.include {
+    background-color:var(--include-color);
+    color:white;
+  }
+
+  .tag-btn-css.exclude {
+    background-color:var(--exclude-color);
+    color:white;
+    text-decoration: line-through;
+  }
+
+  .post-tag {
+    font-family: var(--tag-font);
+    margin-right: 6px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 14px;
+}
+
+  .highlight-text {
+    background: linear-gradient(to right, var(--left-highlight), var(--right-highlight));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
 
 </style>
