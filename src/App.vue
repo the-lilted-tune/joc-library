@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref, computed, onMounted} from 'vue';
+import {ref, computed, onMounted, watch} from 'vue';
 import Papa from 'papaparse';
 
   //GOOGLE SHEETS PARSING
@@ -44,7 +44,7 @@ onMounted(async() => {
     posts.value.push(...json.response.posts);
     offset += limit;
   }
-
+  loadSavedFilters();
   loading.value = false;
 }
 )
@@ -74,31 +74,32 @@ function cycleTag(tag) {
 }
 
   //FILTER FUNCTIONALITY
-const appliedCharacter = ref(null)
-const appliedWordCount = ref(null)
-const appliedTagStates = ref({})
+const appliedCharacter = ref(null);
+const appliedWordCount = ref(null);
+const appliedTagStates = ref({});
 
 function applyFilters() {
-  appliedCharacter.value = selectedCharacter.value
-  appliedWordCount.value = selectedWordCount.value
-  appliedTagStates.value = { ...tagStates.value }
-  currentPage.value = 1
+  appliedCharacter.value = selectedCharacter.value;
+  appliedWordCount.value = selectedWordCount.value;
+  appliedTagStates.value = { ...tagStates.value };
+  currentPage.value = 1;
 }
 
 function clearFilters() {
-  selectedCharacter.value = null
-  selectedWordCount.value = null
-  tagStates.value = {}
+  selectedCharacter.value = null;
+  selectedWordCount.value = null;
+  tagStates.value = {};
+  localStorage.removeItem('filters');
 }
 
 const displayedPosts = computed(() => {
   const includeTags = Object.entries(appliedTagStates.value)
     .filter(([_, state]) => state === 'include')
-    .map(([tag, _]) => tag)
+    .map(([tag, _]) => tag);
 
   const excludeTags = Object.entries(appliedTagStates.value)
     .filter(([_, state]) => state === 'exclude')
-    .map(([tag, _]) => tag)
+    .map(([tag, _]) => tag);
 
   return posts.value.filter(post => {
     if(appliedCharacter.value && !post.tags.includes(appliedCharacter.value)) {
@@ -163,6 +164,35 @@ function getTagClass(tag) {
   
   return ''
 }
+
+  //LOCAL STORAGE
+function loadSavedFilters() {
+  try {
+    const saved = localStorage.getItem('filters');
+    if (!saved) return
+    const data = JSON.parse(saved);
+    selectedCharacter.value = data.character;
+    selectedWordCount.value = data.wordCount;
+    tagStates.value = data.tagStates || {};
+    appliedCharacter.value = data.character;
+    appliedWordCount.value = data.wordCount;
+    appliedTagStates.value = { ...data.tagStates } || {};
+  } catch {
+    // Storage not available, just skip
+  }
+}
+
+watch([selectedCharacter, selectedWordCount, tagStates], () => {
+  try {
+    localStorage.setItem('filters', JSON.stringify({
+      character: selectedCharacter.value,
+      wordCount: selectedWordCount.value,
+      tagStates: tagStates.value
+    }))
+  } catch {
+    // Storage not available
+  }
+})
 
 </script>
 
@@ -250,7 +280,7 @@ function getTagClass(tag) {
   </div>
 
   <!-- Nav Buttons -->
-   <div class="pagination">
+   <div class="nav-btns-container">
     <button 
       @click="currentPage--" 
       :disabled="currentPage <= 1"
@@ -332,6 +362,11 @@ function getTagClass(tag) {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  .nav-btns-container {
+    display: flex;
+    justify-content: center;
   }
 
 
