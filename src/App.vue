@@ -8,10 +8,13 @@ const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSyAzSMI6_nkD
 const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
 const BLOG = 'the-lilted-tune';
 
+
 const characters = ref([]);
 const wordCounts = ref([]);
-const generalTags = ref([]);
 const loading = ref(true);
+const dropdownCategories = ['Character', 'Word Count'];
+
+const tagCategories = ref({});
 
 const posts = ref([]);
 
@@ -23,11 +26,19 @@ onMounted(async() => {
   const parsed = Papa.parse(csvText, { header:true });
 
   const rows = parsed.data;
+  const headers = Object.keys(rows[0] || {});
 
   characters.value = rows.map(r => r['Character']?.trim()).filter(Boolean);
   wordCounts.value = rows.map(r => r['Word Count']?.trim()).filter(Boolean);
-  generalTags.value = rows.map(r => r['General Tags']?.trim()).filter(Boolean);
 
+  headers.forEach(header => {
+    const trimmed = header.trim();
+    if (dropdownCategories.includes(trimmed)) return
+
+    tagCategories.value[trimmed] = rows
+      .map(r => r[header]?.trim())
+      .filter(Boolean)
+  })
   //Tumblr API
   
   const limit = 50;
@@ -133,7 +144,7 @@ function getContent(post) {
     div.innerHTML = last.content
     return div.textContent
   }
-  return post.summary
+  return post.summary || 'Untitled'
 }
 
   //PAGES
@@ -153,6 +164,8 @@ const paginatedPosts = computed(() => {
 function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
+
+
 
 
   //TAG HIGHLIGHTING
@@ -232,19 +245,32 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
   <p>Selected word count: {{ selectedWordCount }}</p>
 
   <!-- Multi select Buttons -->
-  <div>
-    <button
-      v-for="tag in generalTags"
-      :key="tag"
-      class="tag-btn-css"
-      :class="{ include: tagStates[tag] === 'include',
-                exclude: tagStates[tag] === 'exclude'
-       }"
-      @click="cycleTag(tag);"
+  <div
+    class="tag-categories-container"
+  >
+    <div 
+      v-for="(tags, category) in tagCategories" 
+      :key="category" 
+      class="tag-category-container">
+    <p class="category-header">{{ category }}</p>
+    <div
+      class="tags-container"
     >
-      #{{ tag }}
-    </button>
+      <button
+        v-for="tag in tags"
+        :key="tag"
+        class="tag-btn-css"
+        :class="{
+          include: tagStates[tag] === 'include',
+          exclude: tagStates[tag] === 'exclude'
+        }"
+        @click="cycleTag(tag)"
+      >
+        #{{ tag }}
+      </button>
+    </div>
   </div>
+</div>
 
   <!-- Go and clear Button -->
   <button
@@ -278,12 +304,14 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
       </span>
     </p>
   </div>
+ <!-- <pre>{{ JSON.stringify(posts[0], null, 2) }}</pre> -->
 
   <!-- Nav Buttons -->
    <div class="nav-btns-container">
     <button 
       @click="currentPage--" 
       :disabled="currentPage <= 1"
+      class="nav-prev-next-btn"
     >
       Prev
     </button>
@@ -291,6 +319,7 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
     <button
       v-for="page in totalPages"
       :key="page"
+      class="nav-number-btn"
       :class="{ active: currentPage === page }"
       @click="currentPage = page"
     >
@@ -300,15 +329,17 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
     <button 
       @click="currentPage++" 
       :disabled="currentPage >= totalPages"
+      class="nav-prev-next-btn"
+
     >
       Next
     </button>
 
     <button 
-      class="go-to-top" 
+      class="nav-top-btn" 
       @click="scrollToTop()"
     >
-      Back to top
+      Back to top &#10548;
     </button>
   </div>
 
@@ -321,6 +352,28 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
     padding: 6px 12px;
     margin: 4px;
     cursor: pointer;
+  }
+
+  .tag-categories-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .tag-category-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 6px;
+    /* border: solid;
+    border-radius: 10px;
+    border-color: rgb(196, 196, 196); */
+
+  }
+
+  .tags-container {
+    display: flex;
+    flex-direction: column;
   }
 
   .tag-btn-css {
@@ -368,6 +421,28 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
     display: flex;
     justify-content: center;
   }
+
+  .nav-prev-next-btn {
+    border: none;
+    font-family: 'Times New Roman', Times, serif;
+    border-radius: 4px;
+
+  }
+
+  .nav-number-btn {
+    border: none;
+    background-color: rgba(0, 0, 0, 0);
+    padding: 12px;
+    margin: 0 0 0 0;
+
+  }
+
+  .nav-number-btn:hover {
+    border: solid;
+    border-radius: 6px;
+    border-color: var(--nuetral-color);
+  }
+
 
 
 </style>
