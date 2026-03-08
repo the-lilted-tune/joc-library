@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import {ref, computed, onMounted} from 'vue';
-import Papa from 'papaparse'
+import Papa from 'papaparse';
 
   //GOOGLE SHEETS PARSING
   //TUMBLR API FETCHING
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSyAzSMI6_nkDmlFgbNpqpZUbjFvkEZLD0EqMjyh4fExl-T5pihDu89cyI3Tg77U-00-s6SvhXnnxLu/pub?gid=0&single=true&output=csv";
+const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
+const BLOG = 'the-lilted-tune';
 
 const characters = ref([]);
 const wordCounts = ref([]);
@@ -27,24 +29,23 @@ onMounted(async() => {
   generalTags.value = rows.map(r => r['General Tags']?.trim()).filter(Boolean);
 
   //Tumblr API
-  const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
-  const BLOG = 'the-lilted-tune.tumblr.com';
+  
   const limit = 50;
   let offset = 0;
   let totalPosts = Infinity;
 
   while (offset < totalPosts) {
     const response = await fetch(
-      `https://api.tumblr.com/v2/blog/${BLOG}/posts?api_key=${API_KEY}&limit=${limit}&offset=${offset}`
-    )
-    const json = await response.json()
+      `https://api.tumblr.com/v2/blog/${BLOG}.tumblr.com/posts?api_key=${API_KEY}&limit=${limit}&offset=${offset}`
+    );
+    const json = await response.json();
 
-    totalPosts = json.response.total_posts
-    posts.value.push(...json.response.posts)
-    offset += limit
+    totalPosts = json.response.total_posts;
+    posts.value.push(...json.response.posts);
+    offset += limit;
   }
 
-  loading.value = false
+  loading.value = false;
 }
 )
 
@@ -55,40 +56,76 @@ const selectedCharacter = ref(null);
 const selectedWordCount = ref(null);
 
 //Multi-select General Tags
-const selectedTags = ref([]);
+const tagStates = ref({});
 
-function toggleTag(tag) {
-  const index = selectedTags.value.indexOf(tag);
-  //Not selected; add it
-  if (index === -1) {
-    selectedTags.value.push(tag);
-  //Already selected; remove it
+function cycleTag(tag) {
+  const current = tagStates.value[tag];
+  const newState = {...tagStates.value};
+
+  if (!current) {
+    newState[tag] = 'include';
+  } else if (current === 'include') {
+    newState[tag] = 'exclude';
   } else {
-    selectedTags.value.splice(index, 1)
+    delete newState[tag];
   }
+
+  tagStates.value = newState;
 }
 
   //FILTER FUNCTIONALITY
+const appliedCharacter = ref(null)
+const appliedWordCount = ref(null)
+const appliedTagStates = ref({})
+
+function applyFilters() {
+  appliedCharacter.value = selectedCharacter.value
+  appliedWordCount.value = selectedWordCount.value
+  appliedTagStates.value = { ...tagStates.value }
+  currentPage.value = 1
+}
+
+function clearFilters() {
+  selectedCharacter.value = null
+  selectedWordCount.value = null
+  tagStates.value = {}
+}
+
 const displayedPosts = computed(() => {
+  const includeTags = Object.entries(appliedTagStates.value)
+    .filter(([_, state]) => state === 'include')
+    .map(([tag, _]) => tag)
+
+  const excludeTags = Object.entries(appliedTagStates.value)
+    .filter(([_, state]) => state === 'exclude')
+    .map(([tag, _]) => tag)
+
   return posts.value.filter(post => {
-    if(selectedCharacter.value && !post.tags.includes(selectedCharacter.value)) {
+    if(appliedCharacter.value && !post.tags.includes(appliedCharacter.value)) {
       return false
     }
 
-    if(selectedWordCount.value && !post.tags.includes(selectedWordCount.value)) {
+    if(appliedWordCount.value && !post.tags.includes(appliedWordCount.value)) {
       return false
     }
 
-    if(selectedTags.value.length > 0) {
-      const hasAny = selectedTags.value.some(tag => post.tags.includes(tag))
-      if(!hasAny) return false
+    if (includeTags.length > 0) {
+      if (!includeTags.some(tag => post.tags.includes(tag))) return false
+    }
+
+    if (excludeTags.length > 0) {
+      if (excludeTags.some(tag => post.tags.includes(tag))) return false
     }
 
     return true
   })
 })
 
+
+
+//Original summary --> reblog's content (aka title)
 function getContent(post) {
+  //post.trail is an array of all the reblogs (we're the last one)
   if (post.trail && post.trail.length > 0) {
     const last = post.trail[post.trail.length - 1]
     const div = document.createElement('div')
@@ -96,6 +133,24 @@ function getContent(post) {
     return div.textContent
   }
   return post.summary
+}
+
+  //PAGES
+const currentPage = ref(1);
+const POSTS_PER_PAGE = 20;
+
+const totalPages = computed(() => {
+  return Math.ceil(displayedPosts.value.length / POSTS_PER_PAGE)
+});
+
+const paginatedPosts = computed(() => {
+  const start = (currentPage.value - 1) * POSTS_PER_PAGE;
+  return displayedPosts.value.slice(start, start + POSTS_PER_PAGE);
+})
+
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 </script>
@@ -107,9 +162,11 @@ function getContent(post) {
     <label>Character: </label>
     <select v-model="selectedCharacter">
       <option :value="null">All</option>
-      <option v-for="c in characters"
-      :key="c"
-      :value="c">
+      <option 
+        v-for="c in characters"
+        :key="c"
+        :value="c"
+      >
         {{ c }}
       </option>
     </select>
@@ -120,9 +177,11 @@ function getContent(post) {
     <label>Word Count: </label>
     <select v-model="selectedWordCount">
       <option :value="null">All</option>
-      <option v-for="w in wordCounts"
-      :key="w"
-      :value="w">
+      <option 
+        v-for="w in wordCounts"
+        :key="w"
+        :value="w"
+      >
         {{ w }}
       </option>
     </select>
@@ -136,25 +195,73 @@ function getContent(post) {
     <button
       v-for="tag in generalTags"
       :key="tag"
-      :class="{ active: selectedTags.includes(tag) }"
-      @click="toggleTag(tag);"
+      :class="{ include: tagStates[tag] === 'include',
+                exclude: tagStates[tag] === 'exclude'
+       }"
+      @click="cycleTag(tag);"
     >
-      {{ tag }}
+      #{{ tag }}
     </button>
   </div>
 
-  <p>Selected tags: {{ selectedTags }}</p>
+  <!-- Go and clear Button -->
+  <button
+    @click="applyFilters();"
+  >
+    Filter
+  </button>
+
+  <button 
+    class="clear-btn" 
+    @click="clearFilters();"
+  >
+    Clear
+  </button>
 
   <!-- Posts -->
-  <p>Posts loaded: {{ posts.length }}</p>
-  <div v-for="post in displayedPosts" :key="post.id">
+  <p>Posts displayed: {{ displayedPosts.length }}</p>
+  <div 
+    v-for="post in paginatedPosts" 
+    :key="post.id_string"
+  >
     <a :href="post.post_url">{{ getContent(post) }}</a>
     <p>Tags: {{ post.tags }}</p>
   </div>
 
-  <!-- <div v-for="post in displayedPosts" :key="post.id">
-  <pre>{{ JSON.stringify(post, null, 2) }}</pre>
-</div> -->
+  <!-- Nav Buttons -->
+   <div class="pagination">
+    <button 
+      @click="currentPage--" 
+      :disabled="currentPage <= 1"
+    >
+      Prev
+    </button>
+
+    <button
+      v-for="page in totalPages"
+      :key="page"
+      :class="{ active: currentPage === page }"
+      @click="currentPage = page"
+    >
+      {{ page }}
+    </button>
+
+    <button 
+      @click="currentPage++" 
+      :disabled="currentPage >= totalPages"
+    >
+      Next
+    </button>
+
+    <button 
+      class="go-to-top" 
+      @click="scrollToTop()"
+    >
+      Back to top
+    </button>
+  </div>
+
+
 </template>
 
 <style scoped>
@@ -164,8 +271,18 @@ function getContent(post) {
     cursor: pointer;
   }
 
-  button.active {
-    background-color:cornflowerblue;
-    color:white;
+  button.include {
+    background-color:rgb(76, 168, 85);
+    color:rgb(255, 255, 255);
+    padding: 6px 12px;
+    border-radius: 3px;
   }
+
+  button.exclude {
+    background-color:rgb(197, 87, 70);
+    color:rgb(255, 255, 255);
+    padding: 6px 12px;
+    border-radius: 3px;
+  }
+
 </style>
