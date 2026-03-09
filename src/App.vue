@@ -6,7 +6,7 @@ import Papa from 'papaparse';
   //TUMBLR API FETCHING
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSyAzSMI6_nkDmlFgbNpqpZUbjFvkEZLD0EqMjyh4fExl-T5pihDu89cyI3Tg77U-00-s6SvhXnnxLu/pub?gid=0&single=true&output=csv";
 const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
-const BLOG = 'the-lilted-tune';
+const BLOG = 'jackoconnells-suspenders';
 
 
 const characters = ref([]);
@@ -148,35 +148,26 @@ function getParagraphs(post) {
 
 function getTitle(post) {
   //post.trail is an array of all the reblogs (we're the last one)
-  if (post.trail && post.trail.length > 0) {
-    const paragraphs = getParagraphs(post);
-    // // Debugging
-    // paragraphs.forEach((p, i) => {
-    //   console.log(`Post ${post.id_string} - p[${i}]:`, p.textContent)
-    // })
-    
-    if (paragraphs.length > 1) { //Has summary
-      return paragraphs[1].textContent?.trim() || 'Untitled';
-    } else if (paragraphs.length > 0) { //Doesn't have summary
-      return paragraphs[0].textContent?.trim() || 'Untitled';
-    }
+  const paragraphs = getParagraphs(post);
+  
+  if (paragraphs.length > 1) { //Has summary
+    return paragraphs[1].textContent?.trim() || 'Untitled';
+  } else if (paragraphs.length > 0) { //Doesn't have summary
+    return paragraphs[0].textContent?.trim() || 'Untitled';
   }
   return post.summary || 'Untitled'
 }
 
 function getSummary(post) {
-  if (post.trail && post.trail.length > 0) {
-    const paragraphs = getParagraphs(post);
+  const paragraphs = getParagraphs(post);
 
-    if (paragraphs.length > 2) { //Has Summary
-      return Array.from(paragraphs)
-        .slice(2)
-        .map(p => p.textContent?.trim())
-        .join(`\n\n`) || 'Untitled' 
-    } else { //Doesn't have summary
-      return ''
-    }
+  if (paragraphs.length > 2) { //Has Summary
+    return Array.from(paragraphs)
+      .slice(2)
+      .map(p => p.textContent?.trim())
+      .join(`\n\n`) || 'Untitled' 
   }
+  //Doesn't have summary
   return ''
 }
 
@@ -222,7 +213,7 @@ function loadSavedFilters() {
     tagStates.value = data.tagStates || {};
     appliedCharacter.value = data.character;
     appliedWordCount.value = data.wordCount;
-    appliedTagStates.value = { ...data.tagStates } || {};
+    appliedTagStates.value = { ...(data.tagStates || {})};
   } catch {
     // Storage not available
   }
@@ -239,6 +230,36 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
     // Storage not available
   }
 })
+
+  //IMAGES
+function getImages(post) {
+  const div = document.createElement('div')
+  div.innerHTML = post.trail[0].content_raw
+
+  const images = div.querySelectorAll('img')
+  const results = []
+
+  for (const img of images) {
+    const width = parseInt(img.getAttribute('data-orig-width'))
+    const height = parseInt(img.getAttribute('data-orig-height'))
+    
+    results.push({
+        src: img.src,
+        type: (width / height) < 1.8 ? 'square' : 'wide'
+    })
+  }
+
+  const squareCount = (results.filter(img => img.type === 'square').length)
+  if (squareCount === 1) {
+    results[0].type = 'wide'
+  }
+  console.log(`post title: ${getTitle(post)} - squareCount: ${squareCount}`)
+
+  return {
+    images: results,
+    isThree: squareCount % 3 === 0
+  }
+}
 
 </script>
 
@@ -273,9 +294,6 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
       </option>
     </select>
   </div>
-
-  <p>Selected character: {{ selectedCharacter }}</p>
-  <p>Selected word count: {{ selectedWordCount }}</p>
 
   <!-- Multi select Buttons -->
   <div
@@ -325,11 +343,25 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
     v-for="post in paginatedPosts" 
     :key="post.id_string"
   >
+    <div v-if="getImages(post).images.length > 0" 
+      class="post-images"
+      :class="getImages(post).isThree ? 'odd-squares' : ''"
+    >
+      <img
+        v-for="(img, index) in getImages(post).images"
+        :key="index"
+        :src="img.src"
+        :class="img.type === 'square' ? 'grid-thumbnail' : 'wide-thumbnail'"
+        loading="lazy"
+      >
+    </div>
+
+
     <a :href="post.post_url">{{ getTitle(post) }}</a>
     <p
       class="post-author"
     >
-      {{ post.trail[0].blog.name }}
+      {{ post.trail[0].blog.name || 'Unknown' }}
     </p>
     <p 
       v-if="getSummary(post)" 
@@ -353,7 +385,8 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
   <!-- Nav Buttons -->
    <div class="nav-btns-container">
     <button 
-      @click="currentPage--" 
+      @click="currentPage--;
+      scrollToTop()" 
       :disabled="currentPage <= 1"
       class="nav-prev-next-btn"
     >
@@ -365,13 +398,15 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
       :key="page"
       class="nav-number-btn"
       :class="{ active: currentPage === page }"
-      @click="currentPage = page"
+      @click="currentPage = page;
+      scrollToTop()"
     >
       {{ page }}
     </button>
 
     <button 
-      @click="currentPage++" 
+      @click="currentPage++;
+      scrollToTop()" 
       :disabled="currentPage >= totalPages"
       class="nav-prev-next-btn"
 
@@ -409,9 +444,6 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
     flex-direction: column;
     align-items: center;
     margin: 6px;
-    /* border: solid;
-    border-radius: 10px;
-    border-color: rgb(196, 196, 196); */
 
   }
 
@@ -444,6 +476,31 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
     background-color:var(--exclude-color);
     color:white;
     text-decoration: line-through;
+  }
+
+  .post-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 500px;
+  }
+
+  .wide-thumbnail {
+    width: 100%;
+    max-height: 500px;
+    object-fit: contain;
+    border-radius: 6px;
+  }
+
+  .grid-thumbnail {
+    flex: 1 1 calc(33.33% - 4px);
+    height: 150px;
+    object-fit: cover;
+    border-radius: 4px;
+  }
+
+  .odd-squares .grid-thumbnail {
+    max-width: calc(33.33% - 4px);
   }
 
   .post-author {
