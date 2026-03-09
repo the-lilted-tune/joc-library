@@ -39,6 +39,7 @@ onMounted(async() => {
       .map(r => r[header]?.trim())
       .filter(Boolean)
   })
+
   //Tumblr API
   
   const limit = 50;
@@ -134,17 +135,49 @@ const displayedPosts = computed(() => {
 })
 
 
+  //GET REBLOG CONTENTS (TITLE AND SUMMARY)
+function getParagraphs(post) {
+  const last = post.trail[post.trail.length - 1];
+  const div = document.createElement('div');
+  div.innerHTML = last.content;
+  const paragraphs = div.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
 
-//Original summary --> reblog's content (aka title)
-function getContent(post) {
+  return paragraphs;
+
+}
+
+function getTitle(post) {
   //post.trail is an array of all the reblogs (we're the last one)
   if (post.trail && post.trail.length > 0) {
-    const last = post.trail[post.trail.length - 1]
-    const div = document.createElement('div')
-    div.innerHTML = last.content
-    return div.textContent
+    const paragraphs = getParagraphs(post);
+    // // Debugging
+    // paragraphs.forEach((p, i) => {
+    //   console.log(`Post ${post.id_string} - p[${i}]:`, p.textContent)
+    // })
+    
+    if (paragraphs.length > 1) { //Has summary
+      return paragraphs[1].textContent?.trim() || 'Untitled';
+    } else if (paragraphs.length > 0) { //Doesn't have summary
+      return paragraphs[0].textContent?.trim() || 'Untitled';
+    }
   }
   return post.summary || 'Untitled'
+}
+
+function getSummary(post) {
+  if (post.trail && post.trail.length > 0) {
+    const paragraphs = getParagraphs(post);
+
+    if (paragraphs.length > 2) { //Has Summary
+      return Array.from(paragraphs)
+        .slice(2)
+        .map(p => p.textContent?.trim())
+        .join(`\n\n`) || 'Untitled' 
+    } else { //Doesn't have summary
+      return ''
+    }
+  }
+  return ''
 }
 
   //PAGES
@@ -191,7 +224,7 @@ function loadSavedFilters() {
     appliedWordCount.value = data.wordCount;
     appliedTagStates.value = { ...data.tagStates } || {};
   } catch {
-    // Storage not available, just skip
+    // Storage not available
   }
 }
 
@@ -292,7 +325,18 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
     v-for="post in paginatedPosts" 
     :key="post.id_string"
   >
-    <a :href="post.post_url">{{ getContent(post) }}</a>
+    <a :href="post.post_url">{{ getTitle(post) }}</a>
+    <p
+      class="post-author"
+    >
+      {{ post.trail[0].blog.name }}
+    </p>
+    <p 
+      v-if="getSummary(post)" 
+      class="post-summary"
+    >
+      {{ getSummary(post) }}
+    </p>
     <p>Tags:
       <span
         v-for="tag in post.tags"
@@ -304,7 +348,7 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
       </span>
     </p>
   </div>
- <!-- <pre>{{ JSON.stringify(posts[0], null, 2) }}</pre> -->
+ <!-- <pre>{{ JSON.stringify(posts, null, 2) }}</pre> -->
 
   <!-- Nav Buttons -->
    <div class="nav-btns-container">
@@ -402,13 +446,21 @@ watch([selectedCharacter, selectedWordCount, tagStates], () => {
     text-decoration: line-through;
   }
 
+  .post-author {
+    font-style: italic;
+  }
+
+  .post-summary {
+    white-space: pre-line;
+  }
+
   .post-tag {
     font-family: var(--tag-font);
     margin-right: 6px;
     padding: 2px 6px;
     border-radius: 3px;
     font-size: 14px;
-}
+  }
 
   .highlight-text {
     background: linear-gradient(to right, var(--left-highlight), var(--right-highlight));
