@@ -6,7 +6,7 @@ import Papa from 'papaparse';
   //TUMBLR API FETCHING
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSyAzSMI6_nkDmlFgbNpqpZUbjFvkEZLD0EqMjyh4fExl-T5pihDu89cyI3Tg77U-00-s6SvhXnnxLu/pub?gid=0&single=true&output=csv";
 const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
-const BLOG = 'jackoconnells-suspenders';
+const BLOG = 'the-lilted-tune';
 
 
 const characters = ref([]);
@@ -149,10 +149,14 @@ function getParagraphs(post) {
 function getTitle(post) {
   //post.trail is an array of all the reblogs (we're the last one)
   const paragraphs = getParagraphs(post);
+  // // Debugging
+  //   paragraphs.forEach((p, i) => {
+  //     console.log(`Post ${post.id_string} - p[${i}]:`, p.textContent)
+  //   })
   
-  if (paragraphs.length > 1) { //Has summary
+  if (paragraphs.length >= 2) { //Has summary
     return paragraphs[1].textContent?.trim() || 'Untitled';
-  } else if (paragraphs.length > 0) { //Doesn't have summary
+  } else if (paragraphs.length >= 1) { //Doesn't have summary
     return paragraphs[0].textContent?.trim() || 'Untitled';
   }
   return post.summary || 'Untitled'
@@ -161,7 +165,7 @@ function getTitle(post) {
 function getSummary(post) {
   const paragraphs = getParagraphs(post);
 
-  if (paragraphs.length > 2) { //Has Summary
+  if (paragraphs.length >= 2) { //Has Summary
     return Array.from(paragraphs)
       .slice(2)
       .map(p => p.textContent?.trim())
@@ -482,7 +486,7 @@ function getImages(post) {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    max-width: 500px;
+    max-width: 450px;
   }
 
   .wide-thumbnail {
