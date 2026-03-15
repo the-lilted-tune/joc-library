@@ -11,8 +11,9 @@ const BLOG = 'the-lilted-tune';
 
 const characters = ref([]);
 const wordCounts = ref([]);
+const pairings = ref([]);
 const loading = ref(true);
-const dropdownCategories = ['Character', 'Word Count'];
+const dropdownCategories = ['Character', 'Word Count', 'Pairing'];
 
 const tagCategories = ref({});
 
@@ -30,6 +31,7 @@ onMounted(async() => {
 
   characters.value = rows.map(r => r['Character']?.trim()).filter(Boolean);
   wordCounts.value = rows.map(r => r['Word Count']?.trim()).filter(Boolean);
+  pairings.value = rows.map(r => r['Pairing']?.trim()).filter(Boolean);
 
   headers.forEach(header => {
     const trimmed = header.trim();
@@ -66,6 +68,7 @@ onMounted(async() => {
 //Dropdowns (Mutually Exclusive Categories)
 const selectedCharacter = ref(null);
 const selectedWordCount = ref(null);
+const selectedPairing = ref(null);
 
 //Multi-select General Tags
 const tagStates = ref({});
@@ -88,11 +91,13 @@ function cycleTag(tag) {
   //FILTER FUNCTIONALITY
 const appliedCharacter = ref(null);
 const appliedWordCount = ref(null);
+const appliedPairing = ref(null);
 const appliedTagStates = ref({});
 
 function applyFilters() {
   appliedCharacter.value = selectedCharacter.value;
   appliedWordCount.value = selectedWordCount.value;
+  appliedPairing.value = selectedPairing.value;
   appliedTagStates.value = { ...tagStates.value };
   currentPage.value = 1;
 }
@@ -100,6 +105,7 @@ function applyFilters() {
 function clearFilters() {
   selectedCharacter.value = null;
   selectedWordCount.value = null;
+  selectedPairing.value = null;
   tagStates.value = {};
   localStorage.removeItem('filters');
 }
@@ -119,6 +125,10 @@ const displayedPosts = computed(() => {
     }
 
     if(appliedWordCount.value && !post.tags.includes(appliedWordCount.value)) {
+      return false
+    }
+
+    if(appliedPairing.value && !post.tags.includes(appliedPairing.value)) {
       return false
     }
 
@@ -142,7 +152,7 @@ function getParagraphs(post) {
   div.innerHTML = last.content;
   const paragraphs = div.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
 
-  return paragraphs;
+  return Array.from(paragraphs).filter(p => p.textContent?.trim())
 
 }
 
@@ -154,9 +164,7 @@ function getTitle(post) {
   //     console.log(`Post ${post.id_string} - p[${i}]:`, p.textContent)
   //   })
   
-  if (paragraphs.length >= 2) { //Has summary
-    return paragraphs[1].textContent?.trim() || 'Untitled';
-  } else if (paragraphs.length >= 1) { //Doesn't have summary
+  if (paragraphs.length >= 1) {
     return paragraphs[0].textContent?.trim() || 'Untitled';
   }
   return post.summary || 'Untitled'
@@ -167,13 +175,25 @@ function getSummary(post) {
 
   if (paragraphs.length >= 2) { //Has Summary
     return Array.from(paragraphs)
-      .slice(2)
+      .slice(1)
       .map(p => p.textContent?.trim())
       .join(`\n\n`) || 'Untitled' 
   }
   //Doesn't have summary
   return ''
 }
+
+const postContent = computed(() => {
+  const map = {}
+  paginatedPosts.value.forEach(post => {
+    map[post.id_string] = {
+      title: getTitle(post),
+      summary: getSummary(post),
+      images: getImages(post)
+    }
+  })
+  return map
+})
 
   //PAGES
 const currentPage = ref(1);
@@ -198,7 +218,7 @@ function scrollToTop() {
 
   //TAG HIGHLIGHTING
 function getTagClass(tag) {
-  if (appliedCharacter.value === tag || appliedWordCount.value === tag ) return 'highlight-text'
+  if (appliedCharacter.value === tag || appliedWordCount.value === tag || appliedPairing.value === tag) return 'highlight-text'
   
   const state = appliedTagStates.value[tag]
   if (state) return 'highlight-text'
@@ -214,20 +234,23 @@ function loadSavedFilters() {
     const data = JSON.parse(saved);
     selectedCharacter.value = data.character;
     selectedWordCount.value = data.wordCount;
+    selectedPairing.value = data.pairing;
     tagStates.value = data.tagStates || {};
     appliedCharacter.value = data.character;
     appliedWordCount.value = data.wordCount;
+    appliedPairing.value = data.pairing;
     appliedTagStates.value = { ...(data.tagStates || {})};
   } catch {
     // Storage not available
   }
 }
 
-watch([selectedCharacter, selectedWordCount, tagStates], () => {
+watch([selectedCharacter, selectedWordCount, selectedPairing, tagStates], () => {
   try {
     localStorage.setItem('filters', JSON.stringify({
       character: selectedCharacter.value,
       wordCount: selectedWordCount.value,
+      pairing: selectedPairing.value,
       tagStates: tagStates.value
     }))
   } catch {
@@ -265,6 +288,14 @@ function getImages(post) {
   }
 }
 
+const postImages = computed(() => {
+  const map = {}
+  paginatedPosts.value.forEach(post => {
+    map[post.id_string] = getImages(post)
+  })
+  return map
+})
+
 </script>
 
 <template>
@@ -280,6 +311,9 @@ function getImages(post) {
         :value="c"
       >
         {{ c }}
+        <!-- .split(' ')
+        .map(word=>word[0].toUpperCase() + word.slice(1))
+        .join(' ')  -->
       </option>
     </select>
   </div>
@@ -295,6 +329,21 @@ function getImages(post) {
         :value="w"
       >
         {{ w }}
+      </option>
+    </select>
+  </div>
+
+  <!-- Pairing Dropdown -->
+  <div>
+    <label>Pairing: </label>
+    <select v-model="selectedPairing">
+      <option :value="null">All</option>
+      <option 
+        v-for="p in pairings"
+        :key="p"
+        :value="p"
+      >
+        {{ p }}
       </option>
     </select>
   </div>
@@ -361,11 +410,14 @@ function getImages(post) {
     </div>
 
 
-    <a :href="post.post_url">{{ getTitle(post) }}</a>
+    <a :href="post.post_url" target="_blank">{{ getTitle(post) }}</a>
     <p
       class="post-author"
     >
       {{ post.trail[0].blog.name || 'Unknown' }}
+    </p>
+    <p v-if="post.tags.includes('explicit')">
+      18+
     </p>
     <p 
       v-if="getSummary(post)" 
@@ -458,13 +510,18 @@ function getImages(post) {
 
   .tag-btn-css {
     font-family: var(--tag-font);
-    font-size: small;
+    font-size: 12px;
     border: none;
     border-radius: 4px;
     background-color: var(--nuetral-color);
     cursor: pointer;
     transition: box-shadow 0.15s background 0.05s;
+  }
 
+  @media (max-width: 600px) {
+    .tag-btn-css {
+      font-size: 10px;
+    }
   }
 
   .tag-btn-css:hover {
