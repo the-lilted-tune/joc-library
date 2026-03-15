@@ -8,12 +8,9 @@ const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSyAzSMI6_nkD
 const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
 const BLOG = 'the-lilted-tune';
 
-
-const characters = ref([]);
-const wordCounts = ref([]);
-const pairings = ref([]);
 const loading = ref(true);
 const dropdownCategories = ['Character', 'Word Count', 'Pairing'];
+const dropdownOptions = ref({});
 
 const tagCategories = ref({});
 
@@ -29,9 +26,11 @@ onMounted(async() => {
   const rows = parsed.data;
   const headers = Object.keys(rows[0] || {});
 
-  characters.value = rows.map(r => r['Character']?.trim()).filter(Boolean);
-  wordCounts.value = rows.map(r => r['Word Count']?.trim()).filter(Boolean);
-  pairings.value = rows.map(r => r['Pairing']?.trim()).filter(Boolean);
+  dropdownCategories.forEach(cat => {
+    dropdownOptions.value[cat] = rows
+      .map(r => r[cat]?.trim())
+      .filter(Boolean);
+  })
 
   headers.forEach(header => {
     const trimmed = header.trim();
@@ -49,14 +48,18 @@ onMounted(async() => {
   let totalPosts = Infinity;
 
   while (offset < totalPosts) {
+    try {
     const response = await fetch(
       `https://api.tumblr.com/v2/blog/${BLOG}.tumblr.com/posts?api_key=${API_KEY}&limit=${limit}&offset=${offset}`
     );
     const json = await response.json();
-
     totalPosts = json.response.total_posts;
     posts.value.push(...json.response.posts);
     offset += limit;
+    } catch (err) {
+    console.error('Failed to fetch posts at offset', offset, err);
+    break;
+    }
   }
   loadSavedFilters();
   loading.value = false;
@@ -66,9 +69,7 @@ onMounted(async() => {
   //FILTER UI
 
 //Dropdowns (Mutually Exclusive Categories)
-const selectedCharacter = ref(null);
-const selectedWordCount = ref(null);
-const selectedPairing = ref(null);
+const selectedDropdowns = ref({});
 
 //Multi-select General Tags
 const tagStates = ref({});
@@ -89,23 +90,17 @@ function cycleTag(tag) {
 }
 
   //FILTER FUNCTIONALITY
-const appliedCharacter = ref(null);
-const appliedWordCount = ref(null);
-const appliedPairing = ref(null);
+const appliedDropdowns = ref({});
 const appliedTagStates = ref({});
 
 function applyFilters() {
-  appliedCharacter.value = selectedCharacter.value;
-  appliedWordCount.value = selectedWordCount.value;
-  appliedPairing.value = selectedPairing.value;
+  appliedDropdowns.value = { ...selectedDropdowns.value };
   appliedTagStates.value = { ...tagStates.value };
   currentPage.value = 1;
 }
 
 function clearFilters() {
-  selectedCharacter.value = null;
-  selectedWordCount.value = null;
-  selectedPairing.value = null;
+  selectedDropdowns.value = {};
   tagStates.value = {};
   localStorage.removeItem('filters');
 }
@@ -120,16 +115,10 @@ const displayedPosts = computed(() => {
     .map(([tag, _]) => tag);
 
   return posts.value.filter(post => {
-    if(appliedCharacter.value && !post.tags.includes(appliedCharacter.value)) {
-      return false
-    }
-
-    if(appliedWordCount.value && !post.tags.includes(appliedWordCount.value)) {
-      return false
-    }
-
-    if(appliedPairing.value && !post.tags.includes(appliedPairing.value)) {
-      return false
+    for (const cat of dropdownCategories) {
+      if (appliedDropdowns.value[cat] && !post.tags.includes(appliedDropdowns.value[cat])) {
+        return false;
+      }
     }
 
     if (includeTags.length > 0) {
@@ -156,40 +145,23 @@ function getParagraphs(post) {
 
 }
 
-function getTitle(post) {
-  //post.trail is an array of all the reblogs (we're the last one)
-  const paragraphs = getParagraphs(post);
-  // // Debugging
-  //   paragraphs.forEach((p, i) => {
-  //     console.log(`Post ${post.id_string} - p[${i}]:`, p.textContent)
-  //   })
-  
-  if (paragraphs.length >= 1) {
-    return paragraphs[0].textContent?.trim() || 'Untitled';
-  }
-  return post.summary || 'Untitled'
-}
-
-function getSummary(post) {
-  const paragraphs = getParagraphs(post);
-
-  if (paragraphs.length >= 2) { //Has Summary
-    return Array.from(paragraphs)
-      .slice(1)
-      .map(p => p.textContent?.trim())
-      .join(`\n\n`) || 'Untitled' 
-  }
-  //Doesn't have summary
-  return ''
-}
-
 const postContent = computed(() => {
   const map = {}
   paginatedPosts.value.forEach(post => {
+    const paragraphs = getParagraphs(post);
+    const { images, isThree } = getImages(post)
     map[post.id_string] = {
-      title: getTitle(post),
-      summary: getSummary(post),
-      images: getImages(post)
+      title: paragraphs.length >= 1
+        ? paragraphs[0].textContent?.trim() || 'Untitled'
+        : post.summary || 'Untitled',
+      summary: paragraphs.length >= 2
+        ? Array.from(paragraphs)
+          .slice(1)
+          .map(p => p.textContent?.trim())
+          .join(`\n\n`) || 'Untitled'
+        : '',
+      images,    
+      isThree    
     }
   })
   return map
@@ -218,7 +190,9 @@ function scrollToTop() {
 
   //TAG HIGHLIGHTING
 function getTagClass(tag) {
-  if (appliedCharacter.value === tag || appliedWordCount.value === tag || appliedPairing.value === tag) return 'highlight-text'
+  for (const cat in dropdownCategories) {
+    if(appliedDropdowns.value[cat] === tag) return 'highlight-text';
+  }
   
   const state = appliedTagStates.value[tag]
   if (state) return 'highlight-text'
@@ -230,33 +204,27 @@ function getTagClass(tag) {
 function loadSavedFilters() {
   try {
     const saved = localStorage.getItem('filters');
-    if (!saved) return
+    if (!saved) return;
     const data = JSON.parse(saved);
-    selectedCharacter.value = data.character;
-    selectedWordCount.value = data.wordCount;
-    selectedPairing.value = data.pairing;
+    selectedDropdowns.value = data.dropdowns || {};
     tagStates.value = data.tagStates || {};
-    appliedCharacter.value = data.character;
-    appliedWordCount.value = data.wordCount;
-    appliedPairing.value = data.pairing;
-    appliedTagStates.value = { ...(data.tagStates || {})};
+    appliedDropdowns.value = { ...(data.dropdowns || {}) };
+    appliedTagStates.value = { ...(data.tagStates || {}) };
   } catch {
     // Storage not available
   }
 }
 
-watch([selectedCharacter, selectedWordCount, selectedPairing, tagStates], () => {
+watch([selectedDropdowns, tagStates], () => {
   try {
     localStorage.setItem('filters', JSON.stringify({
-      character: selectedCharacter.value,
-      wordCount: selectedWordCount.value,
-      pairing: selectedPairing.value,
+      dropdowns: selectedDropdowns.value,
       tagStates: tagStates.value
     }))
   } catch {
     // Storage not available
   }
-})
+}, {deep: true});
 
   //IMAGES
 function getImages(post) {
@@ -280,7 +248,6 @@ function getImages(post) {
   if (squareCount === 1) {
     results[0].type = 'wide'
   }
-  console.log(`post title: ${getTitle(post)} - squareCount: ${squareCount}`)
 
   return {
     images: results,
@@ -288,65 +255,24 @@ function getImages(post) {
   }
 }
 
-const postImages = computed(() => {
-  const map = {}
-  paginatedPosts.value.forEach(post => {
-    map[post.id_string] = getImages(post)
-  })
-  return map
-})
-
 </script>
 
 <template>
 
-  <!-- Character Dropdown -->
-  <div>
-    <label>Character: </label>
-    <select v-model="selectedCharacter">
-      <option :value="null">All</option>
-      <option 
-        v-for="c in characters"
-        :key="c"
-        :value="c"
-      >
-        {{ c }}
-        <!-- .split(' ')
-        .map(word=>word[0].toUpperCase() + word.slice(1))
-        .join(' ')  -->
-      </option>
-    </select>
-  </div>
-
-  <!-- WordCount Dropdown -->
-  <div>
-    <label>Word Count: </label>
-    <select v-model="selectedWordCount">
-      <option :value="null">All</option>
-      <option 
-        v-for="w in wordCounts"
-        :key="w"
-        :value="w"
-      >
-        {{ w }}
-      </option>
-    </select>
-  </div>
-
-  <!-- Pairing Dropdown -->
-  <div>
-    <label>Pairing: </label>
-    <select v-model="selectedPairing">
-      <option :value="null">All</option>
-      <option 
-        v-for="p in pairings"
-        :key="p"
-        :value="p"
-      >
-        {{ p }}
-      </option>
-    </select>
-  </div>
+  <!-- Dropdowns -->
+  <div v-for="cat in dropdownCategories" :key="cat">
+  <label>{{ cat }}: </label>
+  <select v-model="selectedDropdowns[cat]">
+    <option :value="undefined">All</option>
+    <option
+      v-for="val in dropdownOptions[cat]"
+      :key="val"
+      :value="val"
+    >
+      {{ val }}
+    </option>
+  </select>
+</div>
 
   <!-- Multi select Buttons -->
   <div
@@ -396,12 +322,12 @@ const postImages = computed(() => {
     v-for="post in paginatedPosts" 
     :key="post.id_string"
   >
-    <div v-if="getImages(post).images.length > 0" 
+    <div v-if="postContent[post.id_string].images.length > 0" 
       class="post-images"
-      :class="getImages(post).isThree ? 'odd-squares' : ''"
+      :class="postContent[post.id_string].isThree ? 'odd-squares' : ''"
     >
       <img
-        v-for="(img, index) in getImages(post).images"
+        v-for="(img, index) in postContent[post.id_string].images"
         :key="index"
         :src="img.src"
         :class="img.type === 'square' ? 'grid-thumbnail' : 'wide-thumbnail'"
@@ -410,7 +336,7 @@ const postImages = computed(() => {
     </div>
 
 
-    <a :href="post.post_url" target="_blank">{{ getTitle(post) }}</a>
+    <a :href="post.post_url" target="_blank">{{ postContent[post.id_string].title }}</a>
     <p
       class="post-author"
     >
@@ -420,10 +346,10 @@ const postImages = computed(() => {
       18+
     </p>
     <p 
-      v-if="getSummary(post)" 
+      v-if="postContent[post.id_string].summary" 
       class="post-summary"
     >
-      {{ getSummary(post) }}
+      {{ postContent[post.id_string].summary }}
     </p>
     <p>Tags:
       <span
