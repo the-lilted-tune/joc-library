@@ -9,7 +9,7 @@ const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
 const BLOG = 'the-lilted-tune';
 
 const loading = ref(true);
-const dropdownCategories = ['Character', 'Word Count', 'Pairing', 'Rating'];
+const dropdownCategories = ['Character', 'Fic Type', 'Pairing', 'Rating'];
 const dropdownOptions = ref({});
 const tagCategories = ref<Record<string, { tags: string[], explicitOnly: boolean }>>({});
 
@@ -120,6 +120,9 @@ function cycleTag(tag) {
   //FILTER FUNCTIONALITY
 const appliedDropdowns = ref({});
 const appliedTagStates = ref({});
+const expandedSeries = ref<Record<string, boolean>>({});
+const masterlistPrefix = 'masterlist:';
+
 
 function applyFilters() {
   appliedDropdowns.value = { ...selectedDropdowns.value };
@@ -133,33 +136,76 @@ function clearFilters() {
   localStorage.removeItem('filters');
 }
 
-const displayedPosts = computed(() => {
+const filteredPosts = computed(() => {
   const includeTags = Object.entries(appliedTagStates.value)
     .filter(([_, state]) => state === 'include')
-    .map(([tag, _]) => tag);
+    .map(([tag]) => tag);
 
   const excludeTags = Object.entries(appliedTagStates.value)
     .filter(([_, state]) => state === 'exclude')
-    .map(([tag, _]) => tag);
+    .map(([tag]) => tag);
 
-  return posts.value.filter(post => {
+  return groupedPosts.value.filter(item => {
+    const tags = item.displayPost.tags;
+
     for (const cat of dropdownCategories) {
-      if (appliedDropdowns.value[cat] && !post.tags.includes(appliedDropdowns.value[cat])) {
+      if (appliedDropdowns.value[cat] && !tags.includes(appliedDropdowns.value[cat])) {
         return false;
       }
     }
 
     if (includeTags.length > 0) {
-      if (!includeTags.some(tag => post.tags.includes(tag))) return false
+      if (!includeTags.some(tag => tags.includes(tag))) return false;
     }
 
     if (excludeTags.length > 0) {
-      if (excludeTags.some(tag => post.tags.includes(tag))) return false
+      if (excludeTags.some(tag => tags.includes(tag))) return false;
     }
 
-    return true
-  })
-})
+    return true;
+  });
+});
+
+const groupedPosts = computed(() => {
+  const seriesMap: Record<string, { name: string, posts: any[], mainPost: any }> = {};
+  const result: any[] = [];
+  const seriesInserted = new Set();
+
+  posts.value.forEach(post => {
+    const seriesName = getSeriesName(post);
+
+    if (!seriesName) {
+      result.push({ type: 'standalone', post });
+      return;
+    }
+
+    if (!seriesMap[seriesName]) {
+      seriesMap[seriesName] = { name: seriesName, posts: [], mainPost: null };
+    }
+    seriesMap[seriesName].posts.push(post);
+
+    if (!seriesInserted.has(seriesName)) {
+      result.push({ type: 'series', series: seriesMap[seriesName] });
+      seriesInserted.add(seriesName);
+    }
+  });
+
+  Object.values(seriesMap).forEach(s => {
+    s.posts.sort((a, b) => a.timestamp - b.timestamp);
+    const masterlist = s.posts.find(p =>
+      p.tags.some(t => t.startsWith(masterlistPrefix) && t.slice(masterlistPrefix.length).trim() === s.name)
+    );
+    s.mainPost = masterlist || s.posts[0];
+  });
+
+  result.forEach(item => {
+    item.displayPost = item.type === 'series'
+      ? item.series.mainPost
+      : item.post;
+  });
+
+  return result;
+});
 
 
   //GET REBLOG CONTENTS (TITLE AND SUMMARY)
@@ -175,21 +221,40 @@ function getParagraphs(post) {
 
 const postContent = computed(() => {
   const map = {}
-  paginatedPosts.value.forEach(post => {
-    const paragraphs = getParagraphs(post);
-    const { images, isThree } = getImages(post)
-    map[post.id_string] = {
-      title: paragraphs.length >= 1
-        ? paragraphs[0].textContent?.trim() || 'Untitled'
-        : post.summary || 'Untitled',
-      summary: paragraphs.length >= 2
-        ? Array.from(paragraphs)
-          .slice(1)
-          .map(p => p.textContent?.trim())
-          .join(`\n\n`) || 'Untitled'
-        : '',
-      images,    
-      isThree    
+  paginatedPosts.value.forEach(item => {
+    const dp = item.displayPost;
+    if (!map[dp.id_string]) {
+      const paragraphs = getParagraphs(dp);
+      const { images, isThree } = getImages(dp);
+      map[dp.id_string] = {
+        title: paragraphs.length >= 1
+          ? paragraphs[0].textContent?.trim() || 'Untitled'
+          : dp.summary || 'Untitled',
+        summary: paragraphs.length >= 2
+          ? Array.from(paragraphs)
+            .slice(1)
+            .map(p => p.textContent?.trim())
+            .join('\n\n') || 'Untitled'
+          : '',
+        images,
+        isThree
+      }
+    }
+      // Only process chapter posts if the series is expanded
+    if (item.type === 'series' && expandedSeries.value[item.series.name]) {
+      item.series.posts.forEach(post => {
+        if (!map[post.id_string]) {
+          const paragraphs = getParagraphs(post);
+          map[post.id_string] = {
+            title: paragraphs.length >= 1
+              ? paragraphs[0].textContent?.trim() || 'Untitled'
+              : post.summary || 'Untitled',
+            summary: '',
+            images: [],
+            isThree: false
+          }
+        }
+      })
     }
   })
   return map
@@ -197,15 +262,15 @@ const postContent = computed(() => {
 
   //PAGES
 const currentPage = ref(1);
-const POSTS_PER_PAGE = 20;
+const POSTS_PER_PAGE = 10;
 
 const totalPages = computed(() => {
-  return Math.ceil(displayedPosts.value.length / POSTS_PER_PAGE)
+  return Math.ceil(filteredPosts.value.length / POSTS_PER_PAGE)
 });
 
 const paginatedPosts = computed(() => {
   const start = (currentPage.value - 1) * POSTS_PER_PAGE;
-  return displayedPosts.value.slice(start, start + POSTS_PER_PAGE);
+  return filteredPosts.value.slice(start, start + POSTS_PER_PAGE);
 })
 
 
@@ -281,6 +346,30 @@ function getImages(post) {
     images: results,
     isThree: squareCount % 3 === 0
   }
+}
+
+function retryImage(event) {
+  const img = event.target;
+  const retries = parseInt(img.dataset.retries || '0');
+  if (retries < 3) {
+    img.dataset.retries = String(retries + 1);
+    setTimeout(() => {
+      img.src = img.src;
+    }, 1000 * (retries + 1));
+  }
+}
+
+  //Series Functionality
+const seriesPrefix = 'series:';
+
+function getSeriesName(post) {
+  const seriesTag = post.tags.find(t => t.startsWith(seriesPrefix));
+  if (seriesTag) return seriesTag.slice(seriesPrefix.length).trim();
+
+  const masterlistTag = post.tags.find(t => t.startsWith(masterlistPrefix));
+  if (masterlistTag) return masterlistTag.slice(masterlistPrefix.length).trim();
+
+  return null;
 }
 
 </script>
@@ -359,51 +448,66 @@ function getImages(post) {
   <!-- Page numbers -->
    <p>Page {{ currentPage }}</p>
 
-  <!-- Posts -->
-  <p>Posts displayed: {{ displayedPosts.length }}</p>
+
+   
+
+  <!-- POSTS -->
   <div 
-    v-for="post in paginatedPosts" 
-    :key="post.id_string"
+    v-for="item in paginatedPosts" 
+    :key="item.displayPost.id_string"
+    class="post-container"
   >
-    <div v-if="postContent[post.id_string].images.length > 0" 
+  <!-- Post Images -->
+    <div v-if="postContent[item.displayPost.id_string]?.images.length > 0"
       class="post-images"
-      :class="postContent[post.id_string].isThree ? 'odd-squares' : ''"
+      :class="postContent[item.displayPost.id_string].isThree ? 'odd-squares' : ''"
     >
       <img
-        v-for="(img, index) in postContent[post.id_string].images"
-        :key="index"
+        v-for="(img, i) in postContent[item.displayPost.id_string].images"
+        :key="i"
         :src="img.src"
         :class="img.type === 'square' ? 'grid-thumbnail' : 'wide-thumbnail'"
         loading="lazy"
+        @error="retryImage($event)"
       >
     </div>
 
 
-    <a :href="post.post_url" target="_blank">{{ postContent[post.id_string].title }}</a>
-    <p
-      class="post-author"
-    >
-      {{ post.trail[0].blog.name || 'Unknown' }}
+    <!-- Post Title -->
+    <a :href="item.displayPost.post_url" target="_blank">
+      {{ postContent[item.displayPost.id_string]?.title }}
+    </a>
+
+    <!-- Post author -->
+    <p class="post-author">{{ item.displayPost.trail[0].blog.name || 'Unknown' }}</p>
+
+    <!-- Post summary -->
+    <p v-if="postContent[item.displayPost.id_string]?.summary" class="post-summary">
+      {{ postContent[item.displayPost.id_string].summary }}
     </p>
-    <p v-if="post.tags.includes('explicit') && appliedDropdowns['Rating'] != 'explicit'">
-      18+
-    </p>
-    <p 
-      v-if="postContent[post.id_string].summary" 
-      class="post-summary"
-    >
-      {{ postContent[post.id_string].summary }}
-    </p>
+
+    <!-- Post tags -->
     <p>Tags:
-      <span
-        v-for="tag in post.tags"
-        :key="tag"
-        :class="getTagClass(tag)"
-        class="post-tag"
-      >
+      <span v-for="tag in item.displayPost.tags" :key="tag" :class="getTagClass(tag)" class="post-tag">
         #{{ tag }}
       </span>
     </p>
+    
+
+    <div v-if="item.type === 'series'" class="series-container">
+      <p>{{ item.series.name }} — {{ item.series.posts.length - 1 }} chapters</p>
+      <button @click="expandedSeries[item.series.name] = !expandedSeries[item.series.name]">
+        {{ expandedSeries[item.series.name] ? 'Collapse' : 'Expand' }}
+      </button>
+      <div v-if="expandedSeries[item.series.name]">
+        <div v-for="post in item.series.posts.filter(p => p.id_string !== item.displayPost.id_string)" 
+          :key="post.id_string" 
+          class="series-chapter"
+        >
+          <a :href="post.post_url" target="_blank">{{ postContent[post.id_string]?.title }}</a>
+        </div>
+      </div>
+    </div>
   </div>
  <!-- <pre>{{ JSON.stringify(posts, null, 2) }}</pre> -->
 
@@ -508,11 +612,23 @@ function getImages(post) {
     text-decoration: line-through;
   }
 
+  .post-container {
+    display: flex;
+    flex-direction: column;
+    max-width: 450px;
+    margin: 20px 10px;
+    border-radius: 4px;
+    border: solid;
+    border-color:rgb(215, 215, 215);
+    padding: 10px 10px;
+    border-width: 2px;
+  }
+
   .post-images {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    max-width: 450px;
+    /* max-width: 450px; */
   }
 
   .wide-thumbnail {
