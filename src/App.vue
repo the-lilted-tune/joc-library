@@ -9,10 +9,11 @@ const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
 const BLOG = 'the-lilted-tune';
 
 const loading = ref(true);
-const dropdownCategories = ['Character', 'Word Count', 'Pairing'];
+const dropdownCategories = ['Character', 'Word Count', 'Pairing', 'Rating'];
 const dropdownOptions = ref({});
+const tagCategories = ref<Record<string, { tags: string[], explicitOnly: boolean }>>({});
 
-const tagCategories = ref({});
+const explicitPrefix = '18+:';
 
 const posts = ref([]);
 
@@ -36,9 +37,15 @@ onMounted(async() => {
     const trimmed = header.trim();
     if (dropdownCategories.includes(trimmed)) return
 
-    tagCategories.value[trimmed] = rows
-      .map(r => r[header]?.trim())
-      .filter(Boolean)
+    const isExplicit = trimmed.startsWith(explicitPrefix);
+    const displayName = isExplicit
+      ? trimmed.slice(explicitPrefix.length).trim()
+      : trimmed;
+
+    tagCategories.value[displayName] = {
+      tags: rows.map(r => r[header]?.trim()).filter(Boolean),
+      explicitOnly: isExplicit
+    }
   })
 
   //Tumblr API
@@ -63,15 +70,30 @@ onMounted(async() => {
   }
   loadSavedFilters();
   loading.value = false;
-}
-)
+
+  //Handling click events
+  document.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('.dropdown')) {
+      openDropdown.value = null;
+    }
+  });
+})
 
   //FILTER UI
-
-//Dropdowns (Mutually Exclusive Categories)
 const selectedDropdowns = ref({});
 
-//Multi-select General Tags
+const openDropdown = ref(null);
+
+function toggleDropdown(cat) {
+  openDropdown.value = openDropdown.value === cat ? null : cat;
+}
+
+function selectOption(cat, value) {
+  selectedDropdowns.value[cat] = value;
+  openDropdown.value = null;
+}
+
+
 const tagStates = ref({});
 
 function cycleTag(tag) {
@@ -190,7 +212,7 @@ function scrollToTop() {
 
   //TAG HIGHLIGHTING
 function getTagClass(tag) {
-  for (const cat in dropdownCategories) {
+  for (const cat of dropdownCategories) {
     if(appliedDropdowns.value[cat] === tag) return 'highlight-text';
   }
   
@@ -260,47 +282,52 @@ function getImages(post) {
 <template>
 
   <!-- Dropdowns -->
-  <div v-for="cat in dropdownCategories" :key="cat">
-  <label>{{ cat }}: </label>
-  <select v-model="selectedDropdowns[cat]">
-    <option :value="undefined">All</option>
-    <option
-      v-for="val in dropdownOptions[cat]"
-      :key="val"
-      :value="val"
-    >
-      {{ val }}
-    </option>
-  </select>
-</div>
-
-  <!-- Multi select Buttons -->
-  <div
-    class="tag-categories-container"
-  >
-    <div 
-      v-for="(tags, category) in tagCategories" 
-      :key="category" 
-      class="tag-category-container">
-    <p class="category-header">{{ category }}</p>
-    <div
-      class="tags-container"
-    >
+  <div v-for="cat in dropdownCategories" :key="cat" class="dropdown">
+    <button @click="toggleDropdown(cat)" class="dropdown-btn">
+      {{ selectedDropdowns[cat] || cat }}
+    </button>
+    <div v-if="openDropdown === cat" class="dropdown-menu">
+      <button @click="selectOption(cat, undefined)" class="dropdown-item">
+        All
+      </button>
       <button
-        v-for="tag in tags"
-        :key="tag"
-        class="tag-btn-css"
-        :class="{
-          include: tagStates[tag] === 'include',
-          exclude: tagStates[tag] === 'exclude'
-        }"
-        @click="cycleTag(tag)"
+        v-for="val in dropdownOptions[cat]"
+        :key="val"
+        @click="selectOption(cat, val)"
+        class="dropdown-item"
       >
-        #{{ tag }}
+        {{ val }}
       </button>
     </div>
   </div>
-</div>
+
+  <!-- Multi select Buttons -->
+  <div
+  class="tag-categories-container"
+  >
+    <div
+      v-for="(data, category) in tagCategories"
+      :key="category"
+      v-show="!data.explicitOnly || selectedDropdowns['Rating'] !== 'nonexplicit'"
+      class="tag-category-container"
+    >
+      <p class="category-header">{{ category }}</p>
+      <div class="tags-container">
+        <button
+          v-for="tag in data.tags"
+          :key="tag"
+          class="tag-btn-css"
+          :class="{
+            include: tagStates[tag] === 'include',
+            exclude: tagStates[tag] === 'exclude'
+          }"
+          @click="cycleTag(tag)"
+        >
+          #{{ tag }}
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Go and clear Button -->
   <button
@@ -315,6 +342,9 @@ function getImages(post) {
   >
     Clear
   </button>
+
+  <!-- Page numbers -->
+   <p>Page {{ currentPage }}</p>
 
   <!-- Posts -->
   <p>Posts displayed: {{ displayedPosts.length }}</p>
@@ -342,7 +372,7 @@ function getImages(post) {
     >
       {{ post.trail[0].blog.name || 'Unknown' }}
     </p>
-    <p v-if="post.tags.includes('explicit')">
+    <p v-if="post.tags.includes('explicit') && appliedDropdowns['Rating'] != 'explicit'">
       18+
     </p>
     <p 
@@ -529,7 +559,14 @@ function getImages(post) {
     border: none;
     background-color: rgba(0, 0, 0, 0);
     padding: 12px;
-    margin: 0 0 0 0;
+    margin: 2px 0px;
+
+  }
+
+  .nav-number-btn.active {
+    border: none;
+    border-radius: 4px;
+    background-color: rgba(205, 201, 194, 0.318);
 
   }
 
