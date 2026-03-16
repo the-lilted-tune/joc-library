@@ -96,6 +96,12 @@ function selectOption(cat, value) {
 
 const tagStates = ref({});
 
+const expandedCategories = ref<Record<string, boolean>>({});
+
+function toggleExpand(category: string) {
+  expandedCategories.value[category] = !expandedCategories.value[category];
+}
+
 function cycleTag(tag) {
   const current = tagStates.value[tag];
   const newState = {...tagStates.value};
@@ -314,7 +320,7 @@ function getImages(post) {
       <p class="category-header">{{ category }}</p>
       <div class="tags-container">
         <button
-          v-for="tag in data.tags"
+          v-for="tag in (expandedCategories[category] ? data.tags : data.tags.slice(0, 4))"
           :key="tag"
           class="tag-btn-css"
           :class="{
@@ -324,6 +330,13 @@ function getImages(post) {
           @click="cycleTag(tag)"
         >
           #{{ tag }}
+        </button>
+        <button
+          v-if="data.tags.length > 4"
+          class="expand-btn"
+          @click="toggleExpand(category as string)"
+        >
+          {{ expandedCategories[category] ? 'Show less' : `+${data.tags.length - 4} more` }}
         </button>
       </div>
     </div>
