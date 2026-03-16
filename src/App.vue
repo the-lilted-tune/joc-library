@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref, computed, onMounted, watch} from 'vue';
+import {ref, computed, onMounted, watch, nextTick} from 'vue';
 import Papa from 'papaparse';
 
   //GOOGLE SHEETS PARSING
@@ -31,11 +31,11 @@ onMounted(async() => {
     dropdownOptions.value[cat] = rows
       .map(r => r[cat]?.trim())
       .filter(Boolean);
-  })
+  });
 
   headers.forEach(header => {
     const trimmed = header.trim();
-    if (dropdownCategories.includes(trimmed)) return
+    if (dropdownCategories.includes(trimmed)) return;
 
     const isExplicit = trimmed.startsWith(explicitPrefix);
     const displayName = isExplicit
@@ -45,8 +45,8 @@ onMounted(async() => {
     tagCategories.value[displayName] = {
       tags: rows.map(r => r[header]?.trim()).filter(Boolean),
       explicitOnly: isExplicit
-    }
-  })
+    };
+  });
 
   //Tumblr API
   
@@ -71,7 +71,7 @@ onMounted(async() => {
   loadSavedFilters();
   loading.value = false;
 
-  //Handling click events
+  //Handling if click is outside dropdown
   document.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('.dropdown')) {
       openDropdown.value = null;
@@ -80,8 +80,8 @@ onMounted(async() => {
 })
 
   //FILTER UI
+  //Dropdowns
 const selectedDropdowns = ref({});
-
 const openDropdown = ref(null);
 
 function toggleDropdown(cat) {
@@ -93,9 +93,8 @@ function selectOption(cat, value) {
   openDropdown.value = null;
 }
 
-
+  //Multi-select tags
 const tagStates = ref({});
-
 const expandedCategories = ref<Record<string, boolean>>({});
 
 function toggleExpand(category: string) {
@@ -191,7 +190,7 @@ const groupedPosts = computed(() => {
   });
 
   Object.values(seriesMap).forEach(s => {
-    s.posts.sort((a, b) => a.timestamp - b.timestamp);
+    s.posts.sort((a, b) => getOriginalTimestamp(a) - getOriginalTimestamp(b));
     const masterlist = s.posts.find(p =>
       p.tags.some(t => t.startsWith(masterlistPrefix) && t.slice(masterlistPrefix.length).trim() === s.name)
     );
@@ -207,8 +206,17 @@ const groupedPosts = computed(() => {
   return result;
 });
 
+function getOriginalTimestamp(post) {
+  if (post.trail && post.trail[0]?.post?.id) {
+    return parseInt(post.trail[0].post.id);
+  }
+  return post.timestamp;
+}
 
-  //GET REBLOG CONTENTS (TITLE AND SUMMARY)
+
+  //GET REBLOG CONTENTS (TITLE AND SUMMARY AND WC)
+const wcPrefix = 'wc:';
+
 function getParagraphs(post) {
   const last = post.trail[post.trail.length - 1];
   const div = document.createElement('div');
@@ -217,6 +225,11 @@ function getParagraphs(post) {
 
   return Array.from(paragraphs).filter(p => p.textContent?.trim())
 
+}
+
+function getWordCount(post) {
+  const tag = post.tags.find(t => t.startsWith(wcPrefix));
+  return tag ? tag.slice(wcPrefix.length).trim() : null;
 }
 
 const postContent = computed(() => {
@@ -237,7 +250,8 @@ const postContent = computed(() => {
             .join('\n\n') || 'Untitled'
           : '',
         images,
-        isThree
+        isThree,
+        wordCount: getWordCount(dp),
       }
     }
       // Only process chapter posts if the series is expanded
@@ -251,7 +265,8 @@ const postContent = computed(() => {
               : post.summary || 'Untitled',
             summary: '',
             images: [],
-            isThree: false
+            isThree: false,
+            wordCount: null,
           }
         }
       })
@@ -372,17 +387,52 @@ function getSeriesName(post) {
   return null;
 }
 
+function getNumberOfParts(item) {
+  return item.series.posts.length - (item.series.mainPost.tags.some(t => t.startsWith(masterlistPrefix)) ? 1 : 0)
+}
+
+  //LINK TO TUMBLR
+function openPost(url) {
+  window.open(url, '_blank');
+}
+
+  //MOBILE STUFF
+let touchStartY = 0;
+
+function handleTouchStart(e) {
+  touchStartY = e.touches[0].clientY;
+}
+
+function handleTouchEnd(e, url) {
+  const diff = Math.abs(e.changedTouches[0].clientY - touchStartY);
+  if (diff < 10) {
+    window.open(url, '_blank');
+  }
+}
 </script>
 
 <template>
 
   <!-- Dropdowns -->
-  <div v-for="cat in dropdownCategories" :key="cat" class="dropdown">
-    <button @click="toggleDropdown(cat)" class="dropdown-btn">
+  <div 
+    v-for="cat in dropdownCategories" 
+    :key="cat" 
+    class="dropdown"
+  >
+    <button 
+      @click="toggleDropdown(cat)" 
+      class="dropdown-btn"
+    >
       {{ selectedDropdowns[cat] || cat }}
     </button>
-    <div v-if="openDropdown === cat" class="dropdown-menu">
-      <button @click="selectOption(cat, undefined)" class="dropdown-item">
+
+    <div 
+      v-if="openDropdown === cat" 
+      class="dropdown-menu"
+    >
+      <button 
+        @click="selectOption(cat, undefined)" class="dropdown-item"
+      >
         All
       </button>
       <button
@@ -394,16 +444,16 @@ function getSeriesName(post) {
         {{ val }}
       </button>
     </div>
+
   </div>
 
   <!-- Multi select Buttons -->
-  <div
-  class="tag-categories-container"
-  >
+  <!-- Regular tag categories -->
+  <div class="tag-categories-container">
     <div
       v-for="(data, category) in tagCategories"
       :key="category"
-      v-show="!data.explicitOnly || selectedDropdowns['Rating'] !== 'nonexplicit'"
+      v-show="!data.explicitOnly"
       class="tag-category-container"
     >
       <p class="category-header">{{ category }}</p>
@@ -431,6 +481,42 @@ function getSeriesName(post) {
     </div>
   </div>
 
+  <!-- NSFW tag categories -->
+  <div v-show="selectedDropdowns['Rating'] !== 'nonexplicit'">
+    <h3>NSFW</h3>
+    <div class="tag-categories-container">
+      <div
+        v-for="(data, category) in tagCategories"
+        :key="category"
+        v-show="data.explicitOnly"
+        class="tag-category-container"
+      >
+        <p class="category-header">{{ category }}</p>
+        <div class="tags-container">
+          <button
+            v-for="tag in (expandedCategories[category] ? data.tags : data.tags.slice(0, 4))"
+            :key="tag"
+            class="tag-btn-css"
+            :class="{
+              include: tagStates[tag] === 'include',
+              exclude: tagStates[tag] === 'exclude'
+            }"
+            @click="cycleTag(tag)"
+          >
+            #{{ tag }}
+          </button>
+          <button
+            v-if="data.tags.length > 4"
+            class="expand-btn"
+            @click="toggleExpand(category as string)"
+          >
+            {{ expandedCategories[category] ? 'Show less' : `+${data.tags.length - 4} more` }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Go and clear Button -->
   <button
     @click="applyFilters();"
@@ -449,56 +535,81 @@ function getSeriesName(post) {
    <p>Page {{ currentPage }}</p>
 
 
-   
+
+  <!-- <pre>{{ JSON.stringify(posts, null, 2) }}</pre> -->
 
   <!-- POSTS -->
+  <div
+    class="posts-center-container"
+  >
+  <div
+    class="posts-container"
+  >
+  
   <div 
     v-for="item in paginatedPosts" 
     :key="item.displayPost.id_string"
     class="post-container"
   >
-  <!-- Post Images -->
-    <div v-if="postContent[item.displayPost.id_string]?.images.length > 0"
-      class="post-images"
-      :class="postContent[item.displayPost.id_string].isThree ? 'odd-squares' : ''"
+    <div
+      class="main-post-container"
+      @click="openPost(item.displayPost.post_url)"
+      @touchstart="handleTouchStart"
+      @touchend="handleTouchEnd($event, item.displayPost.post_url)"
+      style="cursor: pointer;"
     >
-      <img
-        v-for="(img, i) in postContent[item.displayPost.id_string].images"
-        :key="i"
-        :src="img.src"
-        :class="img.type === 'square' ? 'grid-thumbnail' : 'wide-thumbnail'"
-        loading="lazy"
-        @error="retryImage($event)"
-      >
+  
+      <!-- Post Images -->
+        <div v-if="postContent[item.displayPost.id_string]?.images.length > 0"
+          class="post-images"
+          :class="postContent[item.displayPost.id_string].isThree ? 'odd-squares' : ''"
+        >
+          <img
+            v-for="(img, i) in postContent[item.displayPost.id_string].images"
+            :key="i"
+            :src="img.src"
+            :class="img.type === 'square' ? 'grid-thumbnail' : 'wide-thumbnail'"
+            loading="lazy"
+            @error="retryImage($event)"
+          >
+        </div>
+
+
+      <!-- Post Title -->
+      <p>{{ postContent[item.displayPost.id_string]?.title }}</p>
+      
+      <!-- Post author -->
+      <p class="post-author">{{ item.displayPost.trail[0].blog.name || 'Unknown' }}</p>
+
+      <!-- Post Word Count -->
+       <p v-if="postContent[item.displayPost.id_string]?.wordCount" class="post-wc">
+        {{ postContent[item.displayPost.id_string].wordCount }} words
+      </p>
+
+      <!-- Post summary -->
+      <p v-if="postContent[item.displayPost.id_string]?.summary" class="post-summary">
+        {{ postContent[item.displayPost.id_string].summary }}
+      </p>
+
+      <!-- Post tags -->
+      <p>Tags:
+        <span v-for="tag in item.displayPost.tags" :key="tag" :class="getTagClass(tag)" class="post-tag">
+          #{{ tag }}
+        </span>
+      </p>
     </div>
-
-
-    <!-- Post Title -->
-    <a :href="item.displayPost.post_url" target="_blank">
-      {{ postContent[item.displayPost.id_string]?.title }}
-    </a>
-
-    <!-- Post author -->
-    <p class="post-author">{{ item.displayPost.trail[0].blog.name || 'Unknown' }}</p>
-
-    <!-- Post summary -->
-    <p v-if="postContent[item.displayPost.id_string]?.summary" class="post-summary">
-      {{ postContent[item.displayPost.id_string].summary }}
-    </p>
-
-    <!-- Post tags -->
-    <p>Tags:
-      <span v-for="tag in item.displayPost.tags" :key="tag" :class="getTagClass(tag)" class="post-tag">
-        #{{ tag }}
-      </span>
-    </p>
     
+    <!-- Post Series -->
+    <div 
+      v-if="item.type === 'series'" 
+      class="series-container"
+    >
+      <p>{{ getNumberOfParts(item) }} part{{ (getNumberOfParts(item) === 1) ? '' : 's' }}</p>
 
-    <div v-if="item.type === 'series'" class="series-container">
-      <p>{{ item.series.name }} — {{ item.series.posts.length - 1 }} chapters</p>
       <button @click="expandedSeries[item.series.name] = !expandedSeries[item.series.name]">
         {{ expandedSeries[item.series.name] ? 'Collapse' : 'Expand' }}
       </button>
+      
       <div v-if="expandedSeries[item.series.name]">
         <div v-for="post in item.series.posts.filter(p => p.id_string !== item.displayPost.id_string)" 
           :key="post.id_string" 
@@ -508,8 +619,12 @@ function getSeriesName(post) {
         </div>
       </div>
     </div>
+    
   </div>
- <!-- <pre>{{ JSON.stringify(posts, null, 2) }}</pre> -->
+  </div>
+  </div>
+  
+ 
 
   <!-- Nav Buttons -->
    <div class="nav-btns-container">
@@ -612,16 +727,24 @@ function getSeriesName(post) {
     text-decoration: line-through;
   }
 
+  .posts-center-container {
+    display: flex;
+    justify-content: center;
+  }
+
   .post-container {
     display: flex;
     flex-direction: column;
-    max-width: 450px;
+    width: 450px;
     margin: 20px 10px;
-    border-radius: 4px;
+    border-radius: 2px;
     border: solid;
     border-color:rgb(215, 215, 215);
+    background-color: rgb(250, 250, 250);
     padding: 10px 10px;
-    border-width: 2px;
+    border-width: 1px;
+    container-type: inline-size;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .post-images {
@@ -635,14 +758,14 @@ function getSeriesName(post) {
     width: 100%;
     max-height: 500px;
     object-fit: contain;
-    border-radius: 6px;
+    border-radius: 2px;
   }
 
   .grid-thumbnail {
     flex: 1 1 calc(33.33% - 4px);
-    height: 150px;
+    height: calc(100cqi / 3);
     object-fit: cover;
-    border-radius: 4px;
+    border-radius: 2px;
   }
 
   .odd-squares .grid-thumbnail {
