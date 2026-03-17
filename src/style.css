@@ -6,7 +6,20 @@
   --left-highlight: #d60270;
   --right-highlight: #0038a8;
 
-  /* --tag-font: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif; */
+  --tag-font: Garamond, 'Times New Roman';
+
+  --button-color:
+  /* f4ece5 */
+
+  html, body {
+    height: 100vh; 
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: #e6ded6; 
+  }
 
 
 }

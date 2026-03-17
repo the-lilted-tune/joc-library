@@ -414,6 +414,8 @@ function handleTouchEnd(e, url) {
 <template>
 
   <!-- Dropdowns -->
+  <div class="dropdowns-center-container">
+  <div class="dropdowns-container">
   <div 
     v-for="cat in dropdownCategories" 
     :key="cat" 
@@ -446,9 +448,12 @@ function handleTouchEnd(e, url) {
     </div>
 
   </div>
+  </div>
+  </div>
 
   <!-- Multi select Buttons -->
   <!-- Regular tag categories -->
+
   <div class="tag-categories-container">
     <div
       v-for="(data, category) in tagCategories"
@@ -481,9 +486,11 @@ function handleTouchEnd(e, url) {
     </div>
   </div>
 
-  <!-- NSFW tag categories -->
+  <!-- Explicit tag categories -->
   <div v-show="selectedDropdowns['Rating'] !== 'nonexplicit'">
-    <h3>NSFW</h3>
+    <div class="explicit-heading">
+    <h2>Explicit Tags</h2>
+    </div>
     <div class="tag-categories-container">
       <div
         v-for="(data, category) in tagCategories"
@@ -532,7 +539,7 @@ function handleTouchEnd(e, url) {
   </button>
 
   <!-- Page numbers -->
-   <p>Page {{ currentPage }}</p>
+   <p>Page {{ currentPage }} of {{ totalPages }}</p>
 
 
 
@@ -560,6 +567,7 @@ function handleTouchEnd(e, url) {
     >
   
       <!-- Post Images -->
+       <div class="post-images-wrapper">
         <div v-if="postContent[item.displayPost.id_string]?.images.length > 0"
           class="post-images"
           :class="postContent[item.displayPost.id_string].isThree ? 'odd-squares' : ''"
@@ -573,18 +581,23 @@ function handleTouchEnd(e, url) {
             @error="retryImage($event)"
           >
         </div>
+        </div>
 
 
       <!-- Post Title -->
-      <p>{{ postContent[item.displayPost.id_string]?.title }}</p>
+      <div class="title-author-wc">
+      <div class="title-author">
+      <p class="post-title">{{ postContent[item.displayPost.id_string]?.title }}</p>
       
       <!-- Post author -->
       <p class="post-author">{{ item.displayPost.trail[0].blog.name || 'Unknown' }}</p>
+      </div>
 
       <!-- Post Word Count -->
        <p v-if="postContent[item.displayPost.id_string]?.wordCount" class="post-wc">
         {{ postContent[item.displayPost.id_string].wordCount }} words
       </p>
+      </div>
 
       <!-- Post summary -->
       <p v-if="postContent[item.displayPost.id_string]?.summary" class="post-summary">
@@ -604,18 +617,30 @@ function handleTouchEnd(e, url) {
       v-if="item.type === 'series'" 
       class="series-container"
     >
+    <div
+      class="expand-container"
+    >
       <p>{{ getNumberOfParts(item) }} part{{ (getNumberOfParts(item) === 1) ? '' : 's' }}</p>
 
-      <button @click="expandedSeries[item.series.name] = !expandedSeries[item.series.name]">
-        {{ expandedSeries[item.series.name] ? 'Collapse' : 'Expand' }}
+      <button 
+        @click="expandedSeries[item.series.name] = !expandedSeries[item.series.name]"
+        class="series-expand-button">
+        {{ expandedSeries[item.series.name] ? '&ndash;' : '+' }}
       </button>
+    </div>
       
       <div v-if="expandedSeries[item.series.name]">
-        <div v-for="post in item.series.posts.filter(p => p.id_string !== item.displayPost.id_string)" 
+        <div 
+          v-for="post in item.series.posts.filter(p => p.id_string !== item.displayPost.id_string)" 
           :key="post.id_string" 
-          class="series-chapter"
+          class="series-chapter-container"
+          @click="openPost(post.post_url)"
         >
-          <a :href="post.post_url" target="_blank">{{ postContent[post.id_string]?.title }}</a>
+          <p 
+            class="series-chapter-text"
+          >
+            	{{ postContent[post.id_string]?.title }}
+      </p>
         </div>
       </div>
     </div>
@@ -670,17 +695,31 @@ function handleTouchEnd(e, url) {
 </template>
 
 <style scoped>
+  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+  p {
+    font-family: Garamond, 'EB Garamond', 'Times New Roman', Times, serif;
+  }
 
   button {
     padding: 6px 12px;
     margin: 4px;
     cursor: pointer;
+    font-family: Garamond, 'EB Garamond', 'Times New Roman', Times, serif;
+  }
+
+
+
+  .dropdowns-container {
+    display: flex;
+    justify-content: center;
+    margin: auto;
   }
 
   .tag-categories-container {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
+    justify-content: center;
   }
 
   .tag-category-container {
@@ -698,6 +737,7 @@ function handleTouchEnd(e, url) {
 
   .tag-btn-css {
     font-family: var(--tag-font);
+    width: 120px;
     font-size: 12px;
     border: none;
     border-radius: 4px;
@@ -709,6 +749,19 @@ function handleTouchEnd(e, url) {
   @media (max-width: 600px) {
     .tag-btn-css {
       font-size: 10px;
+      width: 120px;
+    }
+
+    .tag-categories-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      
+    }
+
+    .tag-category-container {
+      width: 100%;
+      align-items: center;
     }
   }
 
@@ -727,6 +780,11 @@ function handleTouchEnd(e, url) {
     text-decoration: line-through;
   }
 
+  .explicit-heading {
+    display: flex;
+    justify-content: center;
+  }
+
   .posts-center-container {
     display: flex;
     justify-content: center;
@@ -735,16 +793,22 @@ function handleTouchEnd(e, url) {
   .post-container {
     display: flex;
     flex-direction: column;
-    width: 450px;
-    margin: 20px 10px;
+    width: 100%;
+    max-width: 500px;
+    margin: 20px 0px;
     border-radius: 2px;
-    border: solid;
-    border-color:rgb(215, 215, 215);
+    border: 1px solid rgb(215, 215, 215);
     background-color: rgb(250, 250, 250);
-    padding: 10px 10px;
-    border-width: 1px;
-    container-type: inline-size;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .post-images-wrapper {
+    container-type: inline-size;
+  }
+
+  .main-post-container {
+    
+    padding: 10px 10px;
   }
 
   .post-images {
@@ -772,12 +836,26 @@ function handleTouchEnd(e, url) {
     max-width: calc(33.33% - 4px);
   }
 
+  .title-author-wc {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .post-title {
+    font-size: larger;
+    margin-bottom: 2px;
+    font-weight: bold;
+  }
+
   .post-author {
     font-style: italic;
+    margin-top: 0px;
   }
 
   .post-summary {
     white-space: pre-line;
+    margin-top: 0px;
   }
 
   .post-tag {
@@ -795,6 +873,30 @@ function handleTouchEnd(e, url) {
     background-clip: text;
   }
 
+  .series-container {
+    
+    border-top: 1px solid rgb(139, 139, 139);
+  }
+
+  .expand-container {
+    padding: 10px 10px;
+    display: flex;
+    justify-content: space-between;
+    
+  }
+
+  .series-chapter-container {
+    cursor: pointer;
+    padding: 10px 10px;
+    border-top: 1px solid rgb(139, 139, 139);
+  }
+
+  .series-chapter-text {
+    cursor: pointer;
+    margin: 0px;
+    padding: 2px 0px 2px 15px;
+  }
+
   .nav-btns-container {
     display: flex;
     justify-content: center;
@@ -802,7 +904,7 @@ function handleTouchEnd(e, url) {
 
   .nav-prev-next-btn {
     border: none;
-    font-family: 'Times New Roman', Times, serif;
+    font-family: Garamond, 'EB Garamond', 'Times New Roman', Times, serif;
     border-radius: 4px;
 
   }
