@@ -745,7 +745,7 @@ function formatTag(tag) {
           <p 
             class="series-chapter-text"
           >
-            	&#129170; {{ postContent[post.id_string]?.title }}
+            	&#9656; {{ postContent[post.id_string]?.title }}
       </p>
         </div>
       </div>
@@ -806,6 +806,10 @@ function formatTag(tag) {
 
 <style scoped>
   @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+  /* * {
+  outline: 2px solid red;
+  } */
+  
   p {
     font-family: var(--font);
   }
@@ -823,7 +827,6 @@ function formatTag(tag) {
   .all-container {
     display: flex;
     flex-direction: row;
-    justify-content: space-between;
   }
 
   .all-filters-container {
@@ -989,7 +992,7 @@ function formatTag(tag) {
     .all-container {
       display: flex;
       flex-direction: column;
-      overflow-x: hidden;
+      /* overflow-x: hidden; */
     }
 
     .all-filters-container {
@@ -1019,6 +1022,9 @@ function formatTag(tag) {
     .all-posts-container {
       margin: 0px;
       width: 100%;
+      align-items: center;
+      padding: 0 20px;
+      box-sizing: border-box;
     }
 
     .dropdowns-container {
@@ -1041,6 +1047,7 @@ function formatTag(tag) {
     .tag-category-container {
       width: 100%;
       align-items: center;
+      margin: 0px;
     }
   }
 
