@@ -10,6 +10,8 @@ const BLOG = 'the-lilted-tune';
 
 const loading = ref(true);
 const dropdownCategories = ['Character', 'Fic Length', 'Pairing', 'Rating'];
+const characterSources = ref<Record<string, string>>({});
+const hiddenColumns = ['Character Source'];
 const dropdownOptions = ref({});
 const tagCategories = ref<Record<string, { tags: string[], explicitOnly: boolean }>>({});
 
@@ -27,6 +29,15 @@ onMounted(async() => {
   const rows = parsed.data;
   const headers = Object.keys(rows[0] || {});
 
+  characterSources.value = {};
+  rows.forEach(r => {
+    const name = r['Character']?.trim();
+    const source = r['Character Source']?.trim();
+    if (name && source) {
+      characterSources.value[name] = source;
+    }
+  });
+
   dropdownCategories.forEach(cat => {
     dropdownOptions.value[cat] = rows
       .map(r => r[cat]?.trim())
@@ -35,6 +46,8 @@ onMounted(async() => {
 
   headers.forEach(header => {
     const trimmed = header.trim();
+    if (dropdownCategories.includes(trimmed)) return;
+    if (hiddenColumns.includes(trimmed)) return;
     if (dropdownCategories.includes(trimmed)) return;
 
     const isExplicit = trimmed.startsWith(explicitPrefix);
@@ -439,6 +452,21 @@ function handleTouchEnd(e, url) {
     window.open(url, '_blank');
   }
 }
+
+  //DISPLAY CHARACTER NAMES
+function capitalize(str) {
+  return str.split(' ').map(word => word[0].toUpperCase() + word.slice(1)).join(' ');
+}
+
+function formatTag(tag) {
+  const source = characterSources.value[tag];
+  if (source) {
+    return `${capitalize(tag)} (${source})`;
+  }
+  return tag;
+}
+
+
 </script>
 
 <template>
@@ -459,7 +487,7 @@ function handleTouchEnd(e, url) {
       @click="toggleDropdown(cat)" 
       class="dropdown-btn"
     >
-      {{ selectedDropdowns[cat] || cat }}
+      {{ selectedDropdowns[cat] ? (cat === 'Character' ? capitalize(selectedDropdowns[cat]) : selectedDropdowns[cat]) : cat }}
     </button>
 
     <div 
@@ -477,7 +505,7 @@ function handleTouchEnd(e, url) {
         @click="selectOption(cat, val)"
         class="dropdown-item"
       >
-        {{ val }}
+        {{ cat === 'Character' ? formatTag(val) : val }}
       </button>
     </div>
 
@@ -925,7 +953,7 @@ function handleTouchEnd(e, url) {
     flex-direction: column;
     align-items: center;
     margin: 6px;
-    font-variant: small-caps;
+    
 
   }
 
@@ -933,6 +961,7 @@ function handleTouchEnd(e, url) {
     color: var(--font-color);
     margin: 4px 0px;
     font-weight: bold;
+    font-variant: small-caps;
   }
 
   .tags-container {
@@ -951,8 +980,8 @@ function handleTouchEnd(e, url) {
     background-color: var(--nuetral-color);
     color: var(--font-color);
     cursor: pointer;
-    font-variant: small-caps;
     transition: box-shadow 0.15s background 0.05s;
+    /* font-variant: small-caps; */
   }
 
   @media (max-width: 600px) {
