@@ -9,7 +9,7 @@ const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
 const BLOG = 'the-lilted-tune';
 
 const loading = ref(true);
-const dropdownCategories = ['Character', 'Fic Type', 'Pairing', 'Rating'];
+const dropdownCategories = ['Character', 'Fic Length', 'Pairing', 'Rating'];
 const dropdownOptions = ref({});
 const tagCategories = ref<Record<string, { tags: string[], explicitOnly: boolean }>>({});
 
@@ -288,9 +288,39 @@ const paginatedPosts = computed(() => {
   return filteredPosts.value.slice(start, start + POSTS_PER_PAGE);
 })
 
+const visiblePages = computed(() => {
+  const total = totalPages.value;
+  const current = currentPage.value;
+  const pages: (number | '...')[] = [];
+
+  if (total <= 8) {
+    for (let i = 1; i <= total; i++) pages.push(i);
+    return pages;
+  }
+
+  pages.push(1);
+
+  if (current > 3) pages.push('...');
+
+  // Pages around current
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 2);
+  for (let i = start; i <= end; i++) pages.push(i);
+
+  if (current < total - 3) pages.push('...');
+
+  // Always show last page
+  pages.push(total);
+
+  return pages;
+});
+
 
 function scrollToTop() {
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  const el = document.getElementById('posts-top');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 
@@ -413,7 +443,11 @@ function handleTouchEnd(e, url) {
 
 <template>
 
+  <div class="all-container">
+  <div class="all-filters-container">
+
   <!-- Dropdowns -->
+   <p class="heading">General Tags</p>
   <div class="dropdowns-center-container">
   <div class="dropdowns-container">
   <div 
@@ -477,7 +511,7 @@ function handleTouchEnd(e, url) {
         </button>
         <button
           v-if="data.tags.length > 4"
-          class="expand-btn"
+          class="tag-expand-btn"
           @click="toggleExpand(category as string)"
         >
           {{ expandedCategories[category] ? 'Show less' : `+${data.tags.length - 4} more` }}
@@ -489,7 +523,7 @@ function handleTouchEnd(e, url) {
   <!-- Explicit tag categories -->
   <div v-show="selectedDropdowns['Rating'] !== 'nonexplicit'">
     <div class="explicit-heading">
-    <h2>Explicit Tags</h2>
+    <p class="heading">Explicit Tags</p>
     </div>
     <div class="tag-categories-container">
       <div
@@ -514,7 +548,7 @@ function handleTouchEnd(e, url) {
           </button>
           <button
             v-if="data.tags.length > 4"
-            class="expand-btn"
+            class="tag-expand-btn"
             @click="toggleExpand(category as string)"
           >
             {{ expandedCategories[category] ? 'Show less' : `+${data.tags.length - 4} more` }}
@@ -523,10 +557,11 @@ function handleTouchEnd(e, url) {
       </div>
     </div>
   </div>
-
+  <div class="go-and-clear-container">
   <!-- Go and clear Button -->
   <button
     @click="applyFilters();"
+    class="filter-btn"
   >
     Filter
   </button>
@@ -537,10 +572,53 @@ function handleTouchEnd(e, url) {
   >
     Clear
   </button>
+  </div>
+
+  </div>
+
+  <div class="all-posts-container">
 
   <!-- Page numbers -->
-   <p>Page {{ currentPage }} of {{ totalPages }}</p>
+   <p 
+      class="page-numbers"
+      id="posts-top"
+    >Page {{ currentPage }} of {{ totalPages }}</p>
 
+   <!-- Nav Buttons -->
+   <div class="nav-btns-container">
+    <button 
+      @click="currentPage--;
+      scrollToTop()" 
+      :disabled="currentPage <= 1"
+      class="nav-prev-next-btn"
+    >
+      Prev
+    </button>
+
+    <template v-for="(page, i) in visiblePages" :key="i">
+      <span v-if="page === '...'" class="nav-ellipsis">...</span>
+      <button
+        v-else
+        class="nav-number-btn"
+        :class="{ active: currentPage === page }"
+        @click="currentPage = page; scrollToTop()"
+      >
+        {{ page }}
+      </button>
+    </template>
+
+    <button 
+      @click="currentPage++;
+      scrollToTop()" 
+      :disabled="currentPage >= totalPages"
+      class="nav-prev-next-btn"
+
+    >
+      Next
+    </button>
+  </div>
+
+  
 
 
   <!-- <pre>{{ JSON.stringify(posts, null, 2) }}</pre> -->
@@ -620,12 +698,12 @@ function handleTouchEnd(e, url) {
     <div
       class="expand-container"
     >
-      <p>{{ getNumberOfParts(item) }} part{{ (getNumberOfParts(item) === 1) ? '' : 's' }}</p>
+      <p class="series-parts-p">{{ getNumberOfParts(item) }} part{{ (getNumberOfParts(item) === 1) ? '' : 's' }}</p>
 
       <button 
         @click="expandedSeries[item.series.name] = !expandedSeries[item.series.name]"
         class="series-expand-button">
-        {{ expandedSeries[item.series.name] ? '&ndash;' : '+' }}
+        {{ expandedSeries[item.series.name] ? 'Collapse' : 'Expand' }}
       </button>
     </div>
       
@@ -639,7 +717,7 @@ function handleTouchEnd(e, url) {
           <p 
             class="series-chapter-text"
           >
-            	{{ postContent[post.id_string]?.title }}
+            	&#129170; {{ postContent[post.id_string]?.title }}
       </p>
         </div>
       </div>
@@ -662,16 +740,17 @@ function handleTouchEnd(e, url) {
       Prev
     </button>
 
-    <button
-      v-for="page in totalPages"
-      :key="page"
-      class="nav-number-btn"
-      :class="{ active: currentPage === page }"
-      @click="currentPage = page;
-      scrollToTop()"
-    >
-      {{ page }}
-    </button>
+    <template v-for="(page, i) in visiblePages" :key="i">
+      <span v-if="page === '...'" class="nav-ellipsis">...</span>
+      <button
+        v-else
+        class="nav-number-btn"
+        :class="{ active: currentPage === page }"
+        @click="currentPage = page; scrollToTop()"
+      >
+        {{ page }}
+      </button>
+    </template>
 
     <button 
       @click="currentPage++;
@@ -691,28 +770,147 @@ function handleTouchEnd(e, url) {
     </button>
   </div>
 
+  </div>
+  </div>
+
 
 </template>
 
 <style scoped>
   @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,700;1,400;1,700&display=swap');
   p {
-    font-family: Garamond, 'EB Garamond', 'Times New Roman', Times, serif;
+    font-family: var(--font);
   }
 
   button {
-    padding: 6px 12px;
-    margin: 4px;
+    /* padding: 6px 12px;
+    margin: 4px; */
+    padding: 0px 0px;
+    margin: 0px 0px;
     cursor: pointer;
-    font-family: Garamond, 'EB Garamond', 'Times New Roman', Times, serif;
+    font-family:var(--font);
+    color: var(--font-color);
   }
 
+  .all-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+  }
 
+  .all-filters-container {
+    display: flex;
+    flex-direction: column;
+    border-bottom: #2c5777;
+    width: 46%;
+    max-width: 600px;
+    position: fixed;
+    overflow: auto;
+    height: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: #c7bdaf transparent;
+    padding: 0px 2%;
+  }
+
+  .all-filters-container::-webkit-scrollbar {
+    overflow: auto;
+    width: 6px;
+  }
+
+  .all-filters-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .all-filters-container::-webkit-scrollbar-thumb {
+    background-color: #c4b5a0;
+    border-radius: 3px;
+  }
+
+  .all-posts-container {
+    display: flex;
+    flex-direction: column;
+    margin-left: 50%;
+    align-items: center;
+  }
+
+  .dropdown {
+    position: relative;
+    display: inline-block;
+    flex: 1 1 100px;
+    min-width: 80px;
+  }
 
   .dropdowns-container {
+    margin: 20px 18px;
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    margin: auto;
+    gap: 4px;
+    padding: 0px 24px;
+  }
+
+  .dropdown-btn {
+    color: var(--font-color);
+    font-family: var(--font);
+    font-size: 14px;
+    padding: 6px 10px;
+    cursor: pointer;
+    /* min-width: 120px; */
+    text-align: left;
+    position: relative;
+    width: 100%;
+  }
+
+  .dropdown-btn::after {
+    content: '▾';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: var(--font-color);
+  }
+
+  .dropdown-btn:hover {
+    opacity: 75%
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: #f3f3f3;
+    border: 1px solid #c4b5a0;
+    border-radius: 3px;
+    box-shadow: 0 4px 12px rgba(42, 33, 24, 0.12);
+    min-width: 100%;
+    z-index: 100;
+    max-height: 250px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #c4b5a0 transparent;
+  }
+
+  .dropdown-item {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    border-bottom: 1px solid #ece5d8;
+    color: #2a2118;
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 8px 12px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .dropdown-item:last-child {
+    border-bottom: none;
+  }
+
+  .dropdown-item:hover {
+    background-color: #dddcd7;
   }
 
   .tag-categories-container {
@@ -727,7 +925,14 @@ function handleTouchEnd(e, url) {
     flex-direction: column;
     align-items: center;
     margin: 6px;
+    font-variant: small-caps;
 
+  }
+
+  .category-header {
+    color: var(--font-color);
+    margin: 4px 0px;
+    font-weight: bold;
   }
 
   .tags-container {
@@ -736,19 +941,64 @@ function handleTouchEnd(e, url) {
   }
 
   .tag-btn-css {
-    font-family: var(--tag-font);
+    margin: 4px 0px;
+    padding: 4px 4px;
+    font-family: var(--font);
     width: 120px;
-    font-size: 12px;
+    font-size: 13px;
     border: none;
     border-radius: 4px;
     background-color: var(--nuetral-color);
+    color: var(--font-color);
     cursor: pointer;
+    font-variant: small-caps;
     transition: box-shadow 0.15s background 0.05s;
   }
 
   @media (max-width: 600px) {
+
+    .all-container {
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    .all-filters-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      position: relative;
+      height: 100%;
+      scrollbar-width: none;
+      padding: 0px;
+    }
+
+    .all-filters-container::-webkit-scrollbar {
+      overflow: none;
+      width: 0px;
+    }
+
+    .all-filters-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .all-filters-container::-webkit-scrollbar-thumb {
+      background-color: var(--background-color);
+      border-radius: 0;
+    }
+
+    .all-posts-container {
+      margin: 0px;
+      width: 100%;
+    }
+
+    .dropdowns-container {
+      padding: 0 12px;
+      margin: 20px 8px;
+    }
+    
     .tag-btn-css {
-      font-size: 10px;
+      font-size: 12px;
       width: 120px;
     }
 
@@ -766,24 +1016,60 @@ function handleTouchEnd(e, url) {
   }
 
   .tag-btn-css:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 8px rgba(104, 99, 88, 0.2);
   }
 
   .tag-btn-css.include {
     background-color:var(--include-color);
-    color:white;
+    color:#e8e0d0;
   }
 
   .tag-btn-css.exclude {
     background-color:var(--exclude-color);
-    color:white;
+    color:#e8e0d0;
     text-decoration: line-through;
   }
 
-  .explicit-heading {
+  .tag-expand-btn {
+    margin: 4px 0px;
+    padding: 4px 4px;
+  }
+
+  .heading {
     display: flex;
     justify-content: center;
+    font-size: larger;
+    font-family: var(--font);
+    color: black;
+    font-weight: bold;
+    margin: 10px 0px;
+    padding: 0px 0px;
   }
+
+  .go-and-clear-container {
+    display: flex;
+    justify-content: right;
+    max-width: 700px;
+    margin-top: 15px;
+    margin-bottom: 20px;
+  }
+
+  .filter-btn,
+  .clear-btn {
+    padding: 6px 30px;
+    
+  }
+
+  .filter-btn:hover {
+    opacity: 75%;
+  }
+
+  .filter-btn {
+    background-color: #554231;
+    color: var(--background-color);
+    margin-right: 10px;
+  }
+
 
   .posts-center-container {
     display: flex;
@@ -797,9 +1083,11 @@ function handleTouchEnd(e, url) {
     max-width: 500px;
     margin: 20px 0px;
     border-radius: 2px;
-    border: 1px solid rgb(215, 215, 215);
-    background-color: rgb(250, 250, 250);
+    border: 1px solid #c4b5a0;
+    background-color: #f3f3f3;
     -webkit-tap-highlight-color: transparent;
+    color: var(--font-color);
+    /* box-shadow: 0 2px 8px #e7dfd4; */
   }
 
   .post-images-wrapper {
@@ -840,17 +1128,25 @@ function handleTouchEnd(e, url) {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 10px;
   }
 
   .post-title {
     font-size: larger;
     margin-bottom: 2px;
     font-weight: bold;
+    flex: 1;
+    min-width: 0;
   }
 
   .post-author {
     font-style: italic;
     margin-top: 0px;
+  }
+
+  .post-wc {
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .post-summary {
@@ -859,7 +1155,7 @@ function handleTouchEnd(e, url) {
   }
 
   .post-tag {
-    font-family: var(--tag-font);
+    font-family: var(--font);
     margin-right: 6px;
     padding: 2px 6px;
     border-radius: 3px;
@@ -871,6 +1167,7 @@ function handleTouchEnd(e, url) {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    font-weight: bold;
   }
 
   .series-container {
@@ -882,13 +1179,28 @@ function handleTouchEnd(e, url) {
     padding: 10px 10px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     
+  }
+
+  .series-parts-p {
+    margin: 0px 0px;
+    font-size: large;
+    padding: 0px 0px;
+  }
+
+  .series-expand-button {
+    padding: 6px 10px;
   }
 
   .series-chapter-container {
     cursor: pointer;
     padding: 10px 10px;
-    border-top: 1px solid rgb(139, 139, 139);
+    border-top: 1px solid #c4b5a0;
+  }
+
+  .series-chapter-container:hover {
+    background-color: #dddcd7;
   }
 
   .series-chapter-text {
@@ -897,37 +1209,64 @@ function handleTouchEnd(e, url) {
     padding: 2px 0px 2px 15px;
   }
 
+  .page-numbers {
+    color: var(--font-color);
+    padding: 10px 0px;
+    margin: 0px
+  }
+
   .nav-btns-container {
     display: flex;
     justify-content: center;
   }
 
-  .nav-prev-next-btn {
-    border: none;
-    font-family: Garamond, 'EB Garamond', 'Times New Roman', Times, serif;
-    border-radius: 4px;
+  .nav-btns-container:last-child {
+    margin-bottom: 20px;
+  }
 
+  .nav-prev-next-btn {
+    font-family: var(--font);
+    padding: 6px 10px;
+    margin: 0px 6px;
+
+  }
+
+  .nav-prev-next-btn:disabled {
+    cursor: default;
   }
 
   .nav-number-btn {
     border: none;
     background-color: rgba(0, 0, 0, 0);
-    padding: 12px;
-    margin: 2px 0px;
+    padding: 6px 10px;
+    margin: 0px 2px;
+    transition: background 0.1s;
 
   }
 
   .nav-number-btn.active {
     border: none;
     border-radius: 4px;
-    background-color: rgba(205, 201, 194, 0.318);
+    background-color: #dddcd7;
 
   }
 
   .nav-number-btn:hover {
-    border: solid;
-    border-radius: 6px;
-    border-color: var(--nuetral-color);
+    background-color: #dddcd7;
+    border: none;
+    border-radius: 4px;
+  }
+
+  .nav-ellipsis {
+
+    font-family: var(--font);
+    color: #8b7b6b;
+    user-select: none;
+  }
+
+  .nav-top-btn {
+    padding: 6px 10px;
+    margin-left: 2px;
   }
 
 

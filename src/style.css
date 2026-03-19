@@ -1,14 +1,19 @@
 :root {
-  --nuetral-color: rgb(238, 238, 238);
-  --include-color: rgb(117, 171, 122);
-  --exclude-color: rgb(195, 130, 120);
+  --nuetral-color: ##e8e0d0;
+  --include-color: #6b7c5e;
+  --exclude-color: #8b5c5c;
 
-  --left-highlight: #d60270;
-  --right-highlight: #0038a8;
+  --left-highlight: #722f37;
+  --right-highlight: #c2575d;
 
-  --tag-font: Garamond, 'Times New Roman';
+  --font-color: #2a2118;
 
-  --button-color:
+  --background-color: #ebebeb;
+
+  --font: Garamond, 'EB Garamond', 'Times New Roman', Times, serif;
+  /* 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; */
+  /* Garamond, 'EB Garamond', 'Times New Roman', Times, serif; */
+
   /* f4ece5 */
 
   html, body {
@@ -18,7 +23,7 @@
   }
 
   body {
-    background-color: #e6ded6; 
+    background-color: var(--background-color); 
   }
 
 
