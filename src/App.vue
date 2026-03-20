@@ -841,6 +841,7 @@ function formatTag(tag) {
     scrollbar-width: thin;
     scrollbar-color: #c7bdaf transparent;
     padding: 0px 2%;
+    background-color: var(--background-color);
   }
 
   .all-filters-container::-webkit-scrollbar {
@@ -860,7 +861,7 @@ function formatTag(tag) {
   .all-posts-container {
     display: flex;
     flex-direction: column;
-    margin-left: 50%;
+    margin-left: 52%;
     align-items: center;
   }
 
@@ -1023,7 +1024,7 @@ function formatTag(tag) {
       margin: 0px;
       width: 100%;
       align-items: center;
-      padding: 0 20px;
+      padding: 0 10px;
       box-sizing: border-box;
     }
 
@@ -1057,12 +1058,12 @@ function formatTag(tag) {
 
   .tag-btn-css.include {
     background-color:var(--include-color);
-    color:#e8e0d0;
+    color:var(--background-color);
   }
 
   .tag-btn-css.exclude {
     background-color:var(--exclude-color);
-    color:#e8e0d0;
+    color:var(--background-color);
     text-decoration: line-through;
   }
 
@@ -1208,7 +1209,7 @@ function formatTag(tag) {
 
   .series-container {
     
-    border-top: 1px solid rgb(139, 139, 139);
+    border-top: 1px solid #c4b5a0;
   }
 
   .expand-container {

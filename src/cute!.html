@@ -1,18 +1,22 @@
 :root {
-  --nuetral-color: none;
-  --include-color: #6b7c5e;
-  --exclude-color: #8b5c5c;
+  --nuetral-color: rgb(17, 17, 17);
+  --include-color: rgb(108, 178, 145);
+  --exclude-color: rgb(180, 97, 122);
 
-  --left-highlight: #722f37;
-  --right-highlight: #c2575d;
+  --left-highlight: rgb(108, 178, 145);
+  --right-highlight: rgb(180, 97, 122);
 
-  --font-color: #2a2118;
+  --font-color: #b8b8b8;
 
-  --background-color: #ebebeb;
+  --background-color: #292929;
+  --post-card-color: rgb(17, 17, 17);
+  --border-color: #b8b8b8;
 
-  --font: Garamond, 'EB Garamond', 'Times New Roman', Times, serif;
+  --font: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+  --heading-font: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
   /* 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; */
   /* Garamond, 'EB Garamond', 'Times New Roman', Times, serif; */
+  /* 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif; */
 
   /* f4ece5 */
 
@@ -28,6 +32,8 @@
 
 
 }
+
+
 
 
 
@@ -51,25 +57,43 @@
     cursor: pointer;
     font-family:var(--font);
     color: var(--font-color);
+    background-color: rgb(27, 27, 27);;
+    border-radius: 10px;
   }
 
   .all-container {
     display: flex;
-    flex-direction: row;
+    flex-direction: row-reverse;
+    width: 100vw;
   }
 
   .all-filters-container {
     display: flex;
     flex-direction: column;
-    border-bottom: #2c5777;
-    width: 46%;
-    max-width: 600px;
+    align-items: center;
+    width: 43%;
+    margin-left: 40%;
     position: fixed;
     overflow: auto;
     height: 100%;
     scrollbar-width: thin;
     scrollbar-color: #c7bdaf transparent;
-    padding: 0px 2%;
+    padding-right: 3%
+    
+  }
+
+  .all-posts-container::-webkit-scrollbar {
+    overflow: auto;
+    width: 6px;
+  }
+
+  .all-posts-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .all-posts-container::-webkit-scrollbar-thumb {
+    background-color: #c4b5a0;
+    border-radius: 3px;
   }
 
   .all-filters-container::-webkit-scrollbar {
@@ -88,16 +112,22 @@
 
   .all-posts-container {
     display: flex;
+    width: 50%;
     flex-direction: column;
-    margin-left: 50%;
+    margin-right: 50%;
     align-items: center;
+    overflow: auto;
+    height: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: #c7bdaf transparent;
+    position: fixed;
   }
 
   .dropdown {
     position: relative;
     display: inline-block;
-    flex: 1 1 100px;
-    min-width: 80px;
+    flex: 1 1 1 120px;
+    min-width: 120px;
   }
 
   .dropdowns-container {
@@ -119,6 +149,8 @@
     text-align: left;
     position: relative;
     width: 100%;
+    background-color: var(--nuetral-color);
+    border-radius: 4px;
   }
 
   .dropdown-btn::after {
@@ -140,7 +172,7 @@
     top: 100%;
     left: 0;
     background-color: #f3f3f3;
-    border: 1px solid #c4b5a0;
+    border: 1px solid var(--nuetral-color);
     border-radius: 3px;
     box-shadow: 0 4px 12px rgba(42, 33, 24, 0.12);
     min-width: 100%;
@@ -148,7 +180,7 @@
     max-height: 250px;
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: #c4b5a0 transparent;
+    scrollbar-color: #d3bdc4 transparent;
   }
 
   .dropdown-item {
@@ -156,7 +188,7 @@
     width: 100%;
     background: none;
     border: none;
-    border-bottom: 1px solid #ece5d8;
+    border-bottom: 1px solid var(--nuetral-color);
     color: #2a2118;
     font-family: var(--font);
     font-size: 13px;
@@ -170,7 +202,7 @@
   }
 
   .dropdown-item:hover {
-    background-color: #dddcd7;
+    background-color: #ddd7d9;
   }
 
   .tag-categories-container {
@@ -192,8 +224,8 @@
   .category-header {
     color: var(--font-color);
     margin: 4px 0px;
-    font-weight: bold;
-    font-variant: small-caps;
+    /* font-variant: small-caps; */
+    font-family: var(--heading-font);
   }
 
   .tags-container {
@@ -205,15 +237,16 @@
     margin: 4px 0px;
     padding: 4px 4px;
     font-family: var(--font);
-    width: 120px;
+    width: 130px;
     font-size: 13px;
     border: none;
-    border-radius: 4px;
+    border-radius: 10px;
     background-color: var(--nuetral-color);
     color: var(--font-color);
     cursor: pointer;
-    transition: box-shadow 0.15s background 0.05s;
+    transition: opacity 0.15s background 0.05s;
     /* font-variant: small-caps; */
+    font-variant: small-caps;
   }
 
   @media (max-width: 600px) {
@@ -281,17 +314,17 @@
   }
 
   .tag-btn-css:hover {
-    box-shadow: 0 2px 8px rgba(104, 99, 88, 0.2);
+    opacity: 65%;
   }
 
   .tag-btn-css.include {
     background-color:var(--include-color);
-    color:#e8e0d0;
+    color:var(--background-color);
   }
 
   .tag-btn-css.exclude {
     background-color:var(--exclude-color);
-    color:#e8e0d0;
+    color:var(--background-color);
     text-decoration: line-through;
   }
 
@@ -304,8 +337,8 @@
     display: flex;
     justify-content: center;
     font-size: larger;
-    font-family: var(--font);
-    color: black;
+    font-family: var(--heading-font);
+    color: var(--font-color);
     font-weight: bold;
     margin: 10px 0px;
     padding: 0px 0px;
@@ -321,7 +354,7 @@
 
   .filter-btn,
   .clear-btn {
-    padding: 6px 30px;
+    padding: 10px 50px;
     
   }
 
@@ -330,7 +363,7 @@
   }
 
   .filter-btn {
-    background-color: #554231;
+    background-color: var(--font-color);
     color: var(--background-color);
     margin-right: 10px;
   }
@@ -345,14 +378,14 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: 500px;
+    max-width: 600px;
     margin: 20px 0px;
     border-radius: 2px;
-    border: 1px solid #c4b5a0;
-    background-color: #f3f3f3;
+    /* border: 1px solid var(--border-color); */
+    background-color: var(--post-card-color);
     -webkit-tap-highlight-color: transparent;
     color: var(--font-color);
-    /* box-shadow: 0 2px 8px #e7dfd4; */
+    box-shadow: 0 2px 8px var(--font-color);
   }
 
   .post-images-wrapper {
@@ -402,6 +435,7 @@
     font-weight: bold;
     flex: 1;
     min-width: 0;
+    font-family: var(--heading-font);
   }
 
   .post-author {
@@ -432,7 +466,6 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    font-weight: bold;
   }
 
   .series-container {
@@ -537,4 +570,3 @@
 
 
 </style>
-
