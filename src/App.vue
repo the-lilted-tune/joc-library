@@ -90,6 +90,12 @@ onMounted(async() => {
       openDropdown.value = null;
     }
   });
+
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme === 'dark') {
+    darkMode.value = true;
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
 })
 
   //FILTER UI
@@ -466,6 +472,15 @@ function formatTag(tag) {
   return tag;
 }
 
+  //DARK MODE
+const darkMode = ref(false);
+
+function toggleTheme() {
+  darkMode.value = !darkMode.value;
+  const theme = darkMode.value ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+}
 
 </script>
 
@@ -475,7 +490,12 @@ function formatTag(tag) {
   <div class="all-filters-container">
 
   <!-- Dropdowns -->
+   <div class="settings-heading">
+  <button @click="toggleTheme" class="theme-toggle-btn">
+    {{ darkMode ? '☀' : '☽' }}
+  </button>
    <p class="heading">General Tags</p>
+   </div>
   <div class="dropdowns-center-container">
   <div class="dropdowns-container">
   <div 
@@ -822,6 +842,9 @@ function formatTag(tag) {
     cursor: pointer;
     font-family:var(--font);
     color: var(--font-color);
+    background-color: var(--background-color);
+    border: 1px solid;
+    border-image: var(--gradient-border) 1;
   }
 
   .all-container {
@@ -832,14 +855,13 @@ function formatTag(tag) {
   .all-filters-container {
     display: flex;
     flex-direction: column;
-    border-bottom: #2c5777;
     width: 46%;
     max-width: 600px;
     position: fixed;
     overflow: auto;
     height: 100%;
     scrollbar-width: thin;
-    scrollbar-color: #c7bdaf transparent;
+    scrollbar-color: var(--scrollbar-color) transparent;
     padding: 0px 2%;
     background-color: var(--background-color);
   }
@@ -854,7 +876,7 @@ function formatTag(tag) {
   }
 
   .all-filters-container::-webkit-scrollbar-thumb {
-    background-color: #c4b5a0;
+    background-color: var(--border-color);
     border-radius: 3px;
   }
 
@@ -863,6 +885,17 @@ function formatTag(tag) {
     flex-direction: column;
     margin-left: 52%;
     align-items: center;
+  }
+
+  .settings-heading {
+    display: flex;
+    align-items: center;
+  }
+
+  .theme-toggle-btn {
+    position: absolute;
+    left: 10px;
+    padding: 6px 10px;
   }
 
   .dropdown {
@@ -911,8 +944,8 @@ function formatTag(tag) {
     position: absolute;
     top: 100%;
     left: 0;
-    background-color: #f3f3f3;
-    border: 1px solid #c4b5a0;
+    background-color: var(--post-color);
+    border: 1px solid var(--border-color);
     border-radius: 3px;
     box-shadow: 0 4px 12px rgba(42, 33, 24, 0.12);
     min-width: 100%;
@@ -920,7 +953,7 @@ function formatTag(tag) {
     max-height: 250px;
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: #c4b5a0 transparent;
+    scrollbar-color: var(--scrollbar-color) transparent;
   }
 
   .dropdown-item {
@@ -928,8 +961,8 @@ function formatTag(tag) {
     width: 100%;
     background: none;
     border: none;
-    border-bottom: 1px solid #ece5d8;
-    color: #2a2118;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--font-color);
     font-family: var(--font);
     font-size: 13px;
     padding: 8px 12px;
@@ -942,7 +975,7 @@ function formatTag(tag) {
   }
 
   .dropdown-item:hover {
-    background-color: #dddcd7;
+    background-color: var(--hover-color);
   }
 
   .tag-categories-container {
@@ -1027,6 +1060,12 @@ function formatTag(tag) {
       padding: 0 10px;
       box-sizing: border-box;
     }
+    .theme-toggle-btn {
+      position: absolute;
+      right: 2%;
+      left: 90%;
+      padding: 6px 10px;
+    }
 
     .dropdowns-container {
       padding: 0 12px;
@@ -1053,17 +1092,17 @@ function formatTag(tag) {
   }
 
   .tag-btn-css:hover {
-    box-shadow: 0 2px 8px rgba(104, 99, 88, 0.2);
+    box-shadow: 0 2px 8px var(--tag-shadow);
   }
 
   .tag-btn-css.include {
     background-color:var(--include-color);
-    color:var(--background-color);
+    color:var(--include-exclude-text);
   }
 
   .tag-btn-css.exclude {
     background-color:var(--exclude-color);
-    color:var(--background-color);
+    color:var(--include-exclude-text);
     text-decoration: line-through;
   }
 
@@ -1077,10 +1116,12 @@ function formatTag(tag) {
     justify-content: center;
     font-size: larger;
     font-family: var(--font);
-    color: black;
+    color: var(--heading-color);
     font-weight: bold;
     margin: 10px 0px;
     padding: 0px 0px;
+    flex: 1;
+    text-align: center;
   }
 
   .go-and-clear-container {
@@ -1102,7 +1143,7 @@ function formatTag(tag) {
   }
 
   .filter-btn {
-    background-color: #554231;
+    background-color: var(--filter-btn-color);
     color: var(--background-color);
     margin-right: 10px;
   }
@@ -1120,8 +1161,8 @@ function formatTag(tag) {
     max-width: 500px;
     margin: 20px 0px;
     border-radius: 2px;
-    border: 1px solid #c4b5a0;
-    background-color: #f3f3f3;
+    border: 1px solid var(--border-color);
+    background-color: var(--post-color);
     -webkit-tap-highlight-color: transparent;
     color: var(--font-color);
     /* box-shadow: 0 2px 8px #e7dfd4; */
@@ -1209,7 +1250,7 @@ function formatTag(tag) {
 
   .series-container {
     
-    border-top: 1px solid #c4b5a0;
+    border-top: 1px solid var(--border-color);
   }
 
   .expand-container {
@@ -1233,11 +1274,11 @@ function formatTag(tag) {
   .series-chapter-container {
     cursor: pointer;
     padding: 10px 10px;
-    border-top: 1px solid #c4b5a0;
+    border-top: 1px solid var(--border-color);
   }
 
   .series-chapter-container:hover {
-    background-color: #dddcd7;
+    background-color: var(--hover-color);
   }
 
   .series-chapter-text {
@@ -1284,12 +1325,12 @@ function formatTag(tag) {
   .nav-number-btn.active {
     border: none;
     border-radius: 4px;
-    background-color: #dddcd7;
+    background-color: var(--hover-color);
 
   }
 
   .nav-number-btn:hover {
-    background-color: #dddcd7;
+    background-color: var(--hover-color);
     border: none;
     border-radius: 4px;
   }
@@ -1297,7 +1338,7 @@ function formatTag(tag) {
   .nav-ellipsis {
 
     font-family: var(--font);
-    color: #8b7b6b;
+    color: var(--font-color);
     user-select: none;
   }
 
