@@ -7,6 +7,7 @@
   --right-highlight: #c2575d;
 
   --font-color: #2a2118;
+  --credit-color: #968d81;
 
   --tag-shadow: rgba(104, 99, 88, 0.2);
 
@@ -59,9 +60,9 @@ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/s
   --border-color: #433834;
   --hover-color: #160b07;
   --heading-color: #b38971;
-  --filter-btn-color: #554231;
+  --filter-btn-color: #b38971;
   --gradient-border: linear-gradient(#926f5c,#433834);
-  --include-exclude-text: var(--background-color);
+  --include-exclude-text: black;
 
   --font: Garamond, 'EB Garamond', 'Times New Roman', Times, serif;
 

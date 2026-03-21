@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import {ref, computed, onMounted, watch, nextTick} from 'vue';
 import Papa from 'papaparse';
+import bannerLight from './jocdomover.png';
+import bannerDark from './jocdomowhite.png';
 
   //GOOGLE SHEETS PARSING
   //TUMBLR API FETCHING
@@ -485,8 +487,8 @@ function toggleTheme() {
 </script>
 
 <template>
-
   <div class="all-container">
+  
   <div class="all-filters-container">
 
   <!-- Dropdowns -->
@@ -819,6 +821,13 @@ function toggleTheme() {
   </div>
 
   </div>
+  <div class="banner-container">
+    <img class="banner" :src="darkMode ? bannerDark : bannerLight">
+    <p class="credits">Logo Design by @scannainscanrula</p>
+    <p class="credits">All coding done in Vue.js by @the-lilted-tune</p>
+    <p class="note">Remember to leave a comment if you enjoyed the fic!</p>
+  </div>
+  
   </div>
 
 
@@ -832,6 +841,7 @@ function toggleTheme() {
   
   p {
     font-family: var(--font);
+    color: var(--font-color);
   }
 
   button {
@@ -852,14 +862,49 @@ function toggleTheme() {
     flex-direction: row;
   }
 
+  .banner-container {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    flex-direction: column;
+    /* align-items: center; */
+    justify-content: flex-start;
+    background-color: var(--background-color);
+    padding: 12px 30px;
+    display: flex;
+    width: 200px;
+  }
+
+  @media (max-width: 1200px) {
+    .banner-container {
+      display: none;
+    }
+}
+
+  .banner {
+    width: 200px;
+    height: 593;
+    object-fit: contain;
+    margin-bottom: 11px;
+  }
+
+  .credits {
+    color: var(--credit-color);
+    font-size: 12px;
+    margin: 3px;
+  }
+
+
   .all-filters-container {
     display: flex;
     flex-direction: column;
     width: 46%;
     max-width: 600px;
-    position: fixed;
-    overflow: auto;
-    height: 100%;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    flex-shrink: 0;
+    overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-color) transparent;
     padding: 0px 2%;
@@ -883,7 +928,11 @@ function toggleTheme() {
   .all-posts-container {
     display: flex;
     flex-direction: column;
-    margin-left: 52%;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    align-items: center;
+    min-width: 0;
     align-items: center;
   }
 
@@ -1021,6 +1070,14 @@ function toggleTheme() {
     /* font-variant: small-caps; */
   }
 
+  .go-and-clear-container {
+    display: flex;
+    justify-content: right;
+    max-width: 700px;
+    margin-top: 15px;
+    margin-bottom: 20px;
+  }
+
   @media (max-width: 600px) {
 
     .all-container {
@@ -1028,6 +1085,21 @@ function toggleTheme() {
       flex-direction: column;
       /* overflow-x: hidden; */
     }
+    .banner-container {
+      display: flex;
+      position: static;
+      order: -1;
+      width: 95vw;
+      height: auto;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    .banner {
+      width: 50%;
+    }
+
 
     .all-filters-container {
       display: flex;
@@ -1089,6 +1161,15 @@ function toggleTheme() {
       align-items: center;
       margin: 0px;
     }
+
+    .go-and-clear-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      /* max-width: 700px; */
+      margin-top: 15px;
+      margin-bottom: 20px;
+    }
   }
 
   .tag-btn-css:hover {
@@ -1124,13 +1205,7 @@ function toggleTheme() {
     text-align: center;
   }
 
-  .go-and-clear-container {
-    display: flex;
-    justify-content: right;
-    max-width: 700px;
-    margin-top: 15px;
-    margin-bottom: 20px;
-  }
+  
 
   .filter-btn,
   .clear-btn {
