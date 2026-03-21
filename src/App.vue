@@ -6,7 +6,7 @@ import bannerDark from './jocdomowhite.png';
 
   //GOOGLE SHEETS PARSING
   //TUMBLR API FETCHING
-const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSyAzSMI6_nkDmlFgbNpqpZUbjFvkEZLD0EqMjyh4fExl-T5pihDu89cyI3Tg77U-00-s6SvhXnnxLu/pub?gid=0&single=true&output=csv";
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQFbxYYYd3jOVwT98e8Op6iTPSn7lThQ0fFNK0N_mr69lfQvD5dzyDxyvMoWfTemJlqvp1J6KXzdCbl/pub?gid=2112873187&single=true&output=csv";
 const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
 const BLOG = 'the-lilted-tune';
 
@@ -456,7 +456,7 @@ function handleTouchStart(e) {
 
 function handleTouchEnd(e, url) {
   const diff = Math.abs(e.changedTouches[0].clientY - touchStartY);
-  if (diff < 10) {
+  if (diff < 5) {
     window.open(url, '_blank');
   }
 }
@@ -870,7 +870,7 @@ function toggleTheme() {
     /* align-items: center; */
     justify-content: flex-start;
     background-color: var(--background-color);
-    padding: 12px 30px;
+    padding: 12px 40px;
     display: flex;
     width: 200px;
   }
@@ -882,7 +882,7 @@ function toggleTheme() {
 }
 
   .banner {
-    width: 200px;
+    width: 220px;
     height: 593;
     object-fit: contain;
     margin-bottom: 11px;
@@ -1083,7 +1083,7 @@ function toggleTheme() {
     .all-container {
       display: flex;
       flex-direction: column;
-      /* overflow-x: hidden; */
+      overflow-x: hidden;
     }
     .banner-container {
       display: flex;
@@ -1127,6 +1127,7 @@ function toggleTheme() {
 
     .all-posts-container {
       margin: 0px;
+      margin-left: 1px;
       width: 100%;
       align-items: center;
       padding: 0 10px;
@@ -1135,7 +1136,7 @@ function toggleTheme() {
     .theme-toggle-btn {
       position: absolute;
       right: 2%;
-      left: 90%;
+      left: 89%;
       padding: 6px 10px;
     }
 
