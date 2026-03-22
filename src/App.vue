@@ -2,7 +2,7 @@
 import {ref, computed, onMounted, watch, nextTick} from 'vue';
 import Papa from 'papaparse';
 import bannerLight from './jocdomover.png';
-import bannerDark from './jocdomowhite.png';
+import bannerDark from './general_colour_joc.png';
 
   //GOOGLE SHEETS PARSING
   //TUMBLR API FETCHING
