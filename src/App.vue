@@ -94,9 +94,9 @@ onMounted(async() => {
   });
 
   const savedTheme = localStorage.getItem('theme');
-  if (savedTheme === 'dark') {
-    darkMode.value = true;
-    document.documentElement.setAttribute('data-theme', 'dark');
+  if (savedTheme === 'light') {
+    lightMode.value = true;
+    document.documentElement.setAttribute('data-theme', 'light');
   }
 })
 
@@ -479,11 +479,11 @@ function formatTag(tag) {
 }
 
   //DARK MODE
-const darkMode = ref(false);
+const lightMode = ref(false);
 
 function toggleTheme() {
-  darkMode.value = !darkMode.value;
-  const theme = darkMode.value ? 'dark' : 'light';
+  lightMode.value = !lightMode.value;
+  const theme = lightMode.value ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('theme', theme);
 }
@@ -498,7 +498,7 @@ function toggleTheme() {
   <!-- Dropdowns -->
    <div class="settings-heading">
   <button @click="toggleTheme" class="theme-toggle-btn">
-    {{ darkMode ? '☀' : '☽' }}
+    {{ lightMode ? '☽' : '☀' }}
   </button>
    <p class="heading">General Tags</p>
    </div>
@@ -826,7 +826,7 @@ function toggleTheme() {
 
   </div>
   <div class="banner-container">
-    <img class="banner" :src="darkMode ? bannerDark : bannerLight">
+    <img class="banner" :src="lightMode ? bannerLight : bannerDark">
     <p class="credits">Logo Design by @scannainscanrula</p>
     <p class="credits">All coding done in Vue.js by @the-lilted-tune</p>
     <p class="note">Remember to leave a comment if you enjoyed the fic!</p>
