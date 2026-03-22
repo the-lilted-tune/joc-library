@@ -8,7 +8,7 @@ import bannerDark from './jocdomowhite.png';
   //TUMBLR API FETCHING
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQFbxYYYd3jOVwT98e8Op6iTPSn7lThQ0fFNK0N_mr69lfQvD5dzyDxyvMoWfTemJlqvp1J6KXzdCbl/pub?gid=2112873187&single=true&output=csv";
 const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
-const BLOG = 'the-lilted-tune';
+const BLOG = 'jocficlibrary';
 
 const loading = ref(true);
 const dropdownCategories = ['Character', 'Fic Length', 'Pairing', 'Rating'];
@@ -180,6 +180,10 @@ const filteredPosts = computed(() => {
 
     if (excludeTags.length > 0) {
       if (excludeTags.some(tag => tags.includes(tag))) return false;
+    }
+
+    if (tags.includes('not a fic')) {
+      return false
     }
 
     return true;
