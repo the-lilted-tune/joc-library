@@ -196,21 +196,23 @@ const groupedPosts = computed(() => {
   const seriesInserted = new Set();
 
   posts.value.forEach(post => {
-    const seriesName = getSeriesName(post);
-
-    if (!seriesName) {
+    const seriesNames = getSeriesName(post);
+    
+      if (!seriesNames) {
       result.push({ type: 'standalone', post });
       return;
     }
 
-    if (!seriesMap[seriesName]) {
-      seriesMap[seriesName] = { name: seriesName, posts: [], mainPost: null };
-    }
-    seriesMap[seriesName].posts.push(post);
+    for (let i = 0; i < seriesNames.length; i++) {
+      if (!seriesMap[seriesNames[i]]) {
+        seriesMap[seriesNames[i]] = { name: seriesNames[i], posts: [], mainPost: null };
+      }
+      seriesMap[seriesNames[i]].posts.push(post);
 
-    if (!seriesInserted.has(seriesName)) {
-      result.push({ type: 'series', series: seriesMap[seriesName] });
-      seriesInserted.add(seriesName);
+      if (!seriesInserted.has(seriesNames[i])) {
+        result.push({ type: 'series', series: seriesMap[seriesNames[i]] });
+        seriesInserted.add(seriesNames[i]);
+      }
     }
   });
 
@@ -433,9 +435,17 @@ function retryImage(event) {
 const seriesPrefix = 'series:';
 
 function getSeriesName(post) {
-  const seriesTag = post.tags.find(t => t.startsWith(seriesPrefix));
-  if (seriesTag) return seriesTag.slice(seriesPrefix.length).trim();
+  const seriesTags = post.tags
+    .filter(t => t.startsWith(seriesPrefix) || t.startsWith(masterlistPrefix))
+    .map(tag => {
+      if (tag.startsWith(seriesPrefix)) return tag.slice(seriesPrefix.length).trim();
+      return tag.slice(masterlistPrefix.length).trim();
+    });
+  return seriesTags.length > 0 ? seriesTags : null;
+  
+}
 
+function getMasterlistName(post) {
   const masterlistTag = post.tags.find(t => t.startsWith(masterlistPrefix));
   if (masterlistTag) return masterlistTag.slice(masterlistPrefix.length).trim();
 
