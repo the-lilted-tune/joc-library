@@ -7,6 +7,7 @@ import bannerDark from './general_colour_joc.png';
   //GOOGLE SHEETS PARSING
   //TUMBLR API FETCHING
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQFbxYYYd3jOVwT98e8Op6iTPSn7lThQ0fFNK0N_mr69lfQvD5dzyDxyvMoWfTemJlqvp1J6KXzdCbl/pub?gid=2112873187&single=true&output=csv";
+const SERIES_ORDER_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQFbxYYYd3jOVwT98e8Op6iTPSn7lThQ0fFNK0N_mr69lfQvD5dzyDxyvMoWfTemJlqvp1J6KXzdCbl/pub?gid=926557433&single=true&output=csv"
 const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
 const BLOG = 'jocficlibrary';
 
@@ -20,6 +21,8 @@ const tagCategories = ref<Record<string, { tags: string[], explicitOnly: boolean
 const explicitPrefix = '18+:';
 
 const posts = ref([]);
+
+const seriesOrderMap = ref<Record<string, number[]>>({});
 
 //Using Papa library to parse
 onMounted(async() => {
@@ -62,6 +65,22 @@ onMounted(async() => {
       explicitOnly: isExplicit
     };
   });
+
+  //Series Order Override
+  const orderResponse = await fetch(SERIES_ORDER_URL);
+  const orderCsv = await orderResponse.text();
+  const orderParsed = Papa.parse(orderCsv, { header: true });
+
+  const orderMap: Record<string, number[]> = {};
+  orderParsed.data.forEach(row => {
+    const series = row['Series Name']?.trim();
+    const order = row['Order']?.trim();
+    if (series && order) {
+      orderMap[series] = order.split(',').map(n => parseInt(n.trim()));
+    }
+  });
+  seriesOrderMap.value = orderMap;
+console.log('Sheet series names:', Object.keys(orderMap));
 
   //Tumblr API
   
@@ -218,6 +237,27 @@ const groupedPosts = computed(() => {
 
   Object.values(seriesMap).forEach(s => {
     s.posts.sort((a, b) => getOriginalTimestamp(a) - getOriginalTimestamp(b));
+
+    const order = seriesOrderMap.value[s.name];
+    if (order) {
+      const original = [...s.posts];
+      const reordered: any[] = [];
+
+      order.forEach(pos => {
+        if (pos >= 1 && pos <= original.length) {
+          reordered.push(original[pos - 1]);
+        }
+      });
+
+      original.forEach((post, i) => {
+        if (!order.includes(i + 1)) {
+          reordered.push(post);
+        }
+      });
+
+      s.posts.splice(0, s.posts.length, ...reordered);
+    }
+
     const masterlist = s.posts.find(p =>
       p.tags.some(t => t.startsWith(masterlistPrefix) && t.slice(masterlistPrefix.length).trim() === s.name)
     );
@@ -443,13 +483,6 @@ function getSeriesName(post) {
     });
   return seriesTags.length > 0 ? seriesTags : null;
   
-}
-
-function getMasterlistName(post) {
-  const masterlistTag = post.tags.find(t => t.startsWith(masterlistPrefix));
-  if (masterlistTag) return masterlistTag.slice(masterlistPrefix.length).trim();
-
-  return null;
 }
 
 function getNumberOfParts(item) {
@@ -773,7 +806,10 @@ function toggleTheme() {
       
       <div v-if="expandedSeries[item.series.name]">
         <div 
-          v-for="post in item.series.posts.filter(p => p.id_string !== item.displayPost.id_string)" 
+          v-for="post in item.series.posts.filter(p => 
+          p.id_string !== item.displayPost.id_string || 
+          !p.tags.some(t => t.startsWith(masterlistPrefix))
+          )" 
           :key="post.id_string" 
           class="series-chapter-container"
           @click="openPost(post.post_url)"
@@ -840,6 +876,7 @@ function toggleTheme() {
     <p class="credits">Logo Design by @scannainscanrula</p>
     <p class="credits">All coding done in Vue.js by @the-lilted-tune</p>
     <p class="note">Remember to leave a comment if you enjoyed the fic!</p>
+    <p><a class="submit-link" href="https://jocficlibrary.tumblr.com/submit">Submit your own fic here!</a></p>
   </div>
   
   </div>
@@ -908,6 +945,10 @@ function toggleTheme() {
     margin: 3px;
   }
 
+  .submit-link {
+    color: var(--credit-color);
+  }
+
 
   .all-filters-container {
     display: flex;
@@ -969,7 +1010,7 @@ function toggleTheme() {
   }
 
   .dropdowns-container {
-    margin: 20px 18px;
+    margin: 10px 18px 15px 18px;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
