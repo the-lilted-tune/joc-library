@@ -510,7 +510,7 @@ function handleTouchEnd(e, url) {
 
   //DISPLAY CHARACTER NAMES
 function capitalize(str) {
-  return str.split(' ').map(word => word[0].toUpperCase() + word.slice(1)).join(' ');
+  return str.split(' ').map(word => word[0].toUpperCase() + word.slice(1)).join(' ').split("'").map(word => word[0].toUpperCase() + word.slice(1)).join("'");
 }
 
 function formatTag(tag) {
