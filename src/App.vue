@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import Papa from 'papaparse';
 import bannerLight from './jocdomover.png';
 import bannerDark from './general_colour_joc.png';
@@ -24,6 +24,7 @@ const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQFbxYYYd3jOV
 const SERIES_ORDER_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQFbxYYYd3jOVwT98e8Op6iTPSn7lThQ0fFNK0N_mr69lfQvD5dzyDxyvMoWfTemJlqvp1J6KXzdCbl/pub?gid=926557433&single=true&output=csv"
 const API_KEY = '0vx5SGdnaG4e7yOrnZlsYtjaZ7ENe87yomO4gTfX3SuNNBUb5d';
 const BLOG = 'jocficlibrary';
+const versionNumber = '1.1.0';
 
 const loading = ref(true);
 const dropdownCategories = ['Character', 'Fic Length', 'Pairing', 'Rating'];
@@ -31,6 +32,7 @@ const characterSources = ref<Record<string, string>>({});
 const hiddenColumns = ['Character Source'];
 const dropdownOptions = ref({});
 const tagCategories = ref<Record<string, { tags: string[], explicitOnly: boolean }>>({});
+const authors = ref<string[]>([]);
 
 const posts = ref([]);
 const seriesOrderMap = ref<Record<string, number[]>>({});
@@ -66,9 +68,9 @@ onMounted(async() => {
   const headers = Object.keys(rows[0] || {});
   const orderParsed = Papa.parse(orderCsv, { header: true });
   const orderMap: Record<string, number[]> = {};
-  const authorSet = new Set<string>();
+  
 
-  useOnMounted(API_KEY, BLOG, loading, dropdownCategories, characterSources, hiddenColumns, dropdownOptions, tagCategories, explicitPrefix, seriesOrderMap, posts, openDropdown, rows, headers, orderParsed, orderMap, authorSet);
+  useOnMounted(API_KEY, BLOG, loading, dropdownCategories, characterSources, hiddenColumns, dropdownOptions, tagCategories, explicitPrefix, seriesOrderMap, posts, openDropdown, rows, headers, orderParsed, orderMap, authors);
 })
 
 
@@ -97,12 +99,27 @@ const {
 const appliedDropdowns = ref({});
 const appliedTagStates = ref({});
 const expandedSeries = ref<Record<string, boolean>>({});
+const appliedAuthor = ref('');
 
 const { 
   applyFilters, 
   clearFilters, 
+  filteredPostsWOAuthor,
   filteredPosts, 
-  groupedPosts } = useFilterFunctionality(appliedDropdowns, appliedTagStates, expandedSeries, selectedDropdowns, tagStates, currentPage, dropdownCategories, getSeriesName, seriesOrderMap, posts, masterlistPrefix);
+  groupedPosts } = useFilterFunctionality(
+    appliedDropdowns, 
+    appliedTagStates, 
+    expandedSeries, 
+    selectedDropdowns, 
+    tagStates, 
+    currentPage, 
+    dropdownCategories, 
+    getSeriesName, 
+    seriesOrderMap, 
+    posts, 
+    masterlistPrefix,
+    appliedAuthor
+  );
 
 
 
@@ -165,6 +182,95 @@ const {
 const lightMode = ref(false);
 
 const toggleTheme = useThemes(lightMode);
+
+
+
+//AUTHOR SEARCH
+const errorWarning = ref('');
+const authorQuery = ref('');
+
+const showAuthorDropdown = ref(false);
+const highlightedAuthorIndex = ref(0);
+
+const authorSuggestions = computed(() => {
+  const q = authorQuery.value.trim().toLowerCase();
+  if (!q) return [];
+  return authors.value
+    .filter(a => a.toLowerCase().includes(q))
+    .slice(0, 8);
+});
+
+function moveAuthorSelection(delta: number) {
+  if (!authorSuggestions.value.length) return;
+  const len = authorSuggestions.value.length;
+  highlightedAuthorIndex.value = (highlightedAuthorIndex.value + delta + len) % len;
+}
+
+function pickAuthor(author: string) {
+  authorQuery.value = author;
+  showAuthorDropdown.value = false;
+}
+
+function pickHighlightedAuthor() {
+  const chosen = authorSuggestions.value[highlightedAuthorIndex.value];
+  if (chosen) pickAuthor(chosen);
+}
+
+function handleAuthorBlur() {
+  setTimeout(() => { showAuthorDropdown.value = false; }, 150);
+}
+
+function applyAuthorAndFilters() {
+  appliedAuthor.value = authorQuery.value.trim();
+  applyFilters(); // your existing function — applies dropdowns + tags
+  currentPage.value = 1;
+}
+
+function clearAuthor() {
+  authorQuery.value = '';
+  appliedAuthor.value = '';
+  applyFilters();
+  currentPage.value = 1;
+}
+
+
+
+function randomizeAuthor() {
+  applyFilters();
+  const eligibleAuthors = new Set<string>();
+  filteredPostsWOAuthor.value.forEach(item => {
+    const author = item.displayPost.trail?.[0]?.blog?.name;
+    if (author) eligibleAuthors.add(author);
+  });
+
+  if (eligibleAuthors.size === 0) {
+    errorWarning.value = 'No stories found. Try widening your search.';
+    return;
+  }
+
+  const eligibleArray = Array.from(eligibleAuthors);
+  const picked = eligibleArray[Math.floor(Math.random() * eligibleArray.length)];
+  
+  appliedAuthor.value = picked;
+  authorQuery.value = picked;
+  errorWarning.value = '';
+  currentPage.value = 1;
+}
+
+watch(filteredPosts, (newPosts) => {
+  if (newPosts.length === 0 && hasAnyFilterActive.value) {
+    errorWarning.value = 'No stories found. Try widening your search.';
+  } else {
+    errorWarning.value = '';
+  }
+});
+
+const hasAnyFilterActive = computed(() => {
+  return Object.values(appliedDropdowns.value).some(v => v) ||
+         Object.values(appliedTagStates.value).some(v => v) ||
+         !!appliedAuthor.value;
+});
+
 
 </script>
 
@@ -291,10 +397,43 @@ const toggleTheme = useThemes(lightMode);
       </div>
     </div>
   </div>
+
+  <!-- Author search MOBILE-->
+  <div class="author-search-container mobile-only">
+    <p class="heading">Author Search!</p>
+    <div class="author-search">
+      <input
+        class="author-search-input"
+        v-model="authorQuery"
+        type="text"
+        placeholder="Search authors..."
+        @focus="showAuthorDropdown = true"
+        @blur="handleAuthorBlur"
+        @keydown.down.prevent="moveAuthorSelection(1)"
+        @keydown.up.prevent="moveAuthorSelection(-1)"
+        @keydown.enter.prevent="pickHighlightedAuthor"
+        @keydown.esc="showAuthorDropdown = false"
+      />
+
+      <ul v-if="showAuthorDropdown && authorSuggestions.length" class="suggestions">
+        <li
+          v-for="(author, i) in authorSuggestions"
+          :key="author"
+          :class="{ highlighted: i === highlightedAuthorIndex }"
+          @mousedown.prevent="pickAuthor(author)"
+          @mouseenter="highlightedAuthorIndex = i"
+        >
+          {{ author }}
+        </li>
+      </ul>
+    </div>
+
+  </div>
+  <div class="filter-btns-container">
   <div class="go-and-clear-container">
   <!-- Go and clear Button -->
   <button
-    @click="applyFilters();"
+    @click="applyAuthorAndFilters();"
     class="filter-btn"
   >
     Filter
@@ -307,6 +446,15 @@ const toggleTheme = useThemes(lightMode);
     Clear
   </button>
   </div>
+  <button
+      @click="randomizeAuthor"
+      class="random-author-btn mobile-only">
+        find a random author!
+    </button>
+    <p class="mobile-only">Showing: {{ appliedAuthor }}</p>
+    </div>
+
+  
 
   </div>
 
@@ -352,8 +500,10 @@ const toggleTheme = useThemes(lightMode);
     </button>
   </div>
 
-  
-
+  <!-- ERROR WARNING -->
+   <p 
+    v-if="errorWarning"
+    class="heading">{{ errorWarning }}</p>
 
   <!-- <pre>{{ JSON.stringify(posts, null, 2) }}</pre> -->
 
@@ -510,10 +660,57 @@ const toggleTheme = useThemes(lightMode);
   </div>
   <div class="banner-container">
     <img class="banner" :src="lightMode ? bannerLight : bannerDark">
+    <p class="credits"> vers {{ versionNumber }}</p>
     <p class="credits">Logo Design by @scannainscanrula</p>
     <p class="credits">All coding done in Vue.js by @the-lilted-tune</p>
     <p class="note">Remember to leave a comment if you enjoyed the fic!</p>
     <p><a class="submit-link" href="https://jocficlibrary.tumblr.com/submit">Submit your own fic here!</a></p>
+
+    <!-- Author search DESKTOP-->
+    <div class="author-search-container desktop-only">
+      <p class="heading">Author Search!</p>
+      <div class="author-search">
+        <input
+          class="author-search-input"
+          v-model="authorQuery"
+          type="text"
+          placeholder="Search authors..."
+          @focus="showAuthorDropdown = true"
+          @blur="handleAuthorBlur"
+          @keydown.down.prevent="moveAuthorSelection(1)"
+          @keydown.up.prevent="moveAuthorSelection(-1)"
+          @keydown.enter.prevent="pickHighlightedAuthor"
+          @keydown.esc="showAuthorDropdown = false"
+        />
+
+        <ul v-if="showAuthorDropdown && authorSuggestions.length" class="suggestions">
+          <li
+            v-for="(author, i) in authorSuggestions"
+            :key="author"
+            :class="{ highlighted: i === highlightedAuthorIndex }"
+            @mousedown.prevent="pickAuthor(author)"
+            @mouseenter="highlightedAuthorIndex = i"
+          >
+            {{ author }}
+          </li>
+        </ul>
+      </div>
+
+      <div class="author-btns">
+        <button @click="applyAuthorAndFilters" class="filter-btn">Search</button>
+        <button @click="clearAuthor" class="clear-btn">Clear</button>
+      </div>
+
+      <button
+        @click="randomizeAuthor"
+        class="random-author-btn">
+          find a random author!
+      </button>
+      <p>Showing: {{ appliedAuthor }}</p>
+    </div>
+    
+
+
   </div>
   
   </div>
@@ -550,41 +747,7 @@ const toggleTheme = useThemes(lightMode);
     flex-direction: row;
   }
 
-  .banner-container {
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    flex-direction: column;
-    /* align-items: center; */
-    justify-content: flex-start;
-    background-color: var(--background-color);
-    padding: 12px 40px;
-    display: flex;
-    width: 200px;
-  }
-
-  @media (max-width: 1200px) {
-    .banner-container {
-      display: none;
-    }
-}
-
-  .banner {
-    width: 220px;
-    height: 593;
-    object-fit: contain;
-    margin-bottom: 11px;
-  }
-
-  .credits {
-    color: var(--credit-color);
-    font-size: 12px;
-    margin: 3px;
-  }
-
-  .submit-link {
-    color: var(--credit-color);
-  }
+  
 
 
   .all-filters-container {
@@ -770,101 +933,6 @@ const toggleTheme = useThemes(lightMode);
     margin-bottom: 20px;
   }
 
-  @media (max-width: 600px) {
-
-    .all-container {
-      display: flex;
-      flex-direction: column;
-      overflow-x: hidden;
-    }
-    .banner-container {
-      display: flex;
-      position: static;
-      order: -1;
-      width: 95vw;
-      height: auto;
-      align-items: center;
-      justify-content: center;
-      padding: 10px;
-    }
-
-    .banner {
-      width: 50%;
-    }
-
-
-    .all-filters-container {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      position: relative;
-      height: 100%;
-      scrollbar-width: none;
-      padding: 0px;
-    }
-
-    .all-filters-container::-webkit-scrollbar {
-      overflow: none;
-      width: 0px;
-    }
-
-    .all-filters-container::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .all-filters-container::-webkit-scrollbar-thumb {
-      background-color: var(--background-color);
-      border-radius: 0;
-    }
-
-    .all-posts-container {
-      margin: 0px;
-      margin-left: 1px;
-      width: 100%;
-      align-items: center;
-      padding: 0 10px;
-      box-sizing: border-box;
-    }
-    .theme-toggle-btn {
-      position: absolute;
-      right: 2%;
-      left: 89%;
-      padding: 6px 10px;
-    }
-
-    .dropdowns-container {
-      padding: 0 12px;
-      margin: 20px 8px;
-    }
-    
-    .tag-btn-css {
-      font-size: 12px;
-      width: 120px;
-    }
-
-    .tag-categories-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      
-    }
-
-    .tag-category-container {
-      width: 100%;
-      align-items: center;
-      margin: 0px;
-    }
-
-    .go-and-clear-container {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      /* max-width: 700px; */
-      margin-top: 15px;
-      margin-bottom: 20px;
-    }
-  }
-
   .tag-btn-css:hover {
     box-shadow: 0 2px 8px var(--tag-shadow);
   }
@@ -899,6 +967,8 @@ const toggleTheme = useThemes(lightMode);
   }
 
   
+  
+
 
   .filter-btn,
   .clear-btn {
@@ -1115,6 +1185,217 @@ const toggleTheme = useThemes(lightMode);
     margin-left: 2px;
   }
 
+  .banner-container {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    flex-direction: column;
+    /* align-items: center; */
+    justify-content: flex-start;
+    background-color: var(--background-color);
+    padding: 12px 40px;
+    display: flex;
+    width: 200px;
+  }
 
+  
+
+  @media (max-width: 1200px) {
+    .banner-container {
+      display: none;
+    }
+}
+
+  .banner {
+    width: 220px;
+    height: 593;
+    object-fit: contain;
+    margin-bottom: 11px;
+  }
+
+  .credits {
+    color: var(--credit-color);
+    font-size: 12px;
+    margin: 3px;
+  }
+
+  .submit-link {
+    color: var(--credit-color);
+  }
+
+  .author-search-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .author-search {
+    position: relative;
+    
+  }
+
+  .author-search-input {
+    background-color: var(--background-color);
+    color: var(--font-color);
+    font: var(--font);
+    border: 2px solid;
+    border-color: var(--border-color);
+    margin-bottom: 12px;
+
+  }
+  .suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--background-color);
+    border: 1px solid;
+    border-color: var(--border-color);
+    color: var(--font-color);
+    max-height: 240px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    z-index: 10;
+  }
+  .suggestions li {
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .suggestions li.highlighted {
+    background: var(--hover-color);
+  }
+
+  .random-author-btn {
+    margin: 12px 0px;
+    padding: 6px 36px;
+    font-variant: small-caps;
+  }
+
+  .mobile-only {
+    display: none;
+  }
+
+  @media (max-width: 600px) {
+
+    .all-container {
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+    .banner-container {
+      display: flex;
+      position: static;
+      order: -1;
+      width: 95vw;
+      height: auto;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    .banner {
+      width: 50%;
+    }
+
+
+    .all-filters-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      position: relative;
+      height: 100%;
+      scrollbar-width: none;
+      padding: 0px;
+    }
+
+    .all-filters-container::-webkit-scrollbar {
+      overflow: none;
+      width: 0px;
+    }
+
+    .all-filters-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .all-filters-container::-webkit-scrollbar-thumb {
+      background-color: var(--background-color);
+      border-radius: 0;
+    }
+
+    .all-posts-container {
+      margin: 0px;
+      margin-left: 1px;
+      width: 100%;
+      align-items: center;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+    .theme-toggle-btn {
+      position: absolute;
+      right: 2%;
+      left: 89%;
+      padding: 6px 10px;
+    }
+
+    .dropdowns-container {
+      padding: 0 12px;
+      margin: 20px 8px;
+    }
+    
+    .tag-btn-css {
+      font-size: 12px;
+      width: 120px;
+    }
+
+    .tag-categories-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      
+    }
+
+    .tag-category-container {
+      width: 100%;
+      align-items: center;
+      margin: 0px;
+    }
+
+    .filter-btns-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .author-search-input {
+      margin-bottom: 0px;
+    }
+    .random-author-btn {
+      margin: 0px;
+    }
+
+    .go-and-clear-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      /* max-width: 700px; */
+      margin-top: 25px;
+      margin-bottom: 10px;
+    }
+
+    .author-search-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .mobile-only {
+      display: flex;
+    }
+    .desktop-only {
+      display: none;
+    }
+  }
 
 </style>

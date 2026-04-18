@@ -1,6 +1,18 @@
 import { computed } from 'vue';
 
-export function useFilterFunctionality(appliedDropdowns, appliedTagStates, expandedSeries, selectedDropdowns, tagStates, currentPage, dropdownCategories, getSeriesName, seriesOrderMap, posts, masterlistPrefix) {
+export function useFilterFunctionality(
+  appliedDropdowns, 
+  appliedTagStates, 
+  expandedSeries, 
+  selectedDropdowns, 
+  tagStates,
+  currentPage, 
+  dropdownCategories, 
+  getSeriesName, 
+  seriesOrderMap, 
+  posts, 
+  masterlistPrefix, 
+  appliedAuthor) {
     //FILTER FUNCTIONALITY
   
   
@@ -15,10 +27,14 @@ export function useFilterFunctionality(appliedDropdowns, appliedTagStates, expan
   function clearFilters() {
     selectedDropdowns.value = {};
     tagStates.value = {};
+    appliedDropdowns.value = {};
+    appliedTagStates.value = {};
+    appliedAuthor.value = '';
+    currentPage.value = 1;
     localStorage.removeItem('filters');
   }
 
-  const filteredPosts = computed(() => {
+  const filteredPostsWOAuthor = computed(() => {
     const includeTags = Object.entries(appliedTagStates.value)
       .filter(([_, state]) => state === 'include')
       .map(([tag]) => tag);
@@ -35,20 +51,21 @@ export function useFilterFunctionality(appliedDropdowns, appliedTagStates, expan
           return false;
         }
       }
-
-      if (includeTags.length > 0) {
-        if (!includeTags.some(tag => tags.includes(tag))) return false;
-      }
-
-      if (excludeTags.length > 0) {
-        if (excludeTags.some(tag => tags.includes(tag))) return false;
-      }
-
-      if (tags.includes('not a fic')) {
-        return false
-      }
-
+      if (includeTags.length > 0 && !includeTags.some(t => tags.includes(t))) return false;
+      if (excludeTags.length > 0 && excludeTags.some(t => tags.includes(t))) return false;
+      if (tags.includes('not a fic')) return false;
+      // note: no author check here
       return true;
+    });
+  });
+
+  // Then filteredPosts becomes simpler:
+  const filteredPosts = computed(() => {
+    if (!appliedAuthor.value) return filteredPostsWOAuthor.value;
+    const target = appliedAuthor.value.toLowerCase();
+    return filteredPostsWOAuthor.value.filter(item => {
+      const author = item.displayPost.trail?.[0]?.blog?.name?.toLowerCase();
+      return author === target;
     });
   });
 
@@ -125,6 +142,6 @@ export function useFilterFunctionality(appliedDropdowns, appliedTagStates, expan
 
   return {
     applyFilters, clearFilters,
-    filteredPosts, groupedPosts
+    filteredPostsWOAuthor, filteredPosts, groupedPosts
   };
 }

@@ -30,7 +30,7 @@ async function runInBatches<T>(
   return results;
 }
 
-export async function useOnMounted(API_KEY, BLOG, loading, dropdownCategories, characterSources, hiddenColumns, dropdownOptions, tagCategories, explicitPrefix, seriesOrderMap, posts, openDropdown, rows, headers, orderParsed, orderMap, authorSet) {
+export async function useOnMounted(API_KEY, BLOG, loading, dropdownCategories, characterSources, hiddenColumns, dropdownOptions, tagCategories, explicitPrefix, seriesOrderMap, posts, openDropdown, rows, headers, orderParsed, orderMap, authors) {
   //GOOGLE SHEETS
   characterSources.value = {};
   rows.forEach(r => {
@@ -141,11 +141,14 @@ export async function useOnMounted(API_KEY, BLOG, loading, dropdownCategories, c
     }
   });
 
+  const authorSet = new Set<string>();
   posts.value.forEach(post => {
-    const originalAuthor = post.trail?.[0]?.blog?.name;
-    if (originalAuthor) {
-      authorSet.add(originalAuthor);
-    }
+    const author = post.trail?.[0]?.blog?.name;
+    if (author === 'jocficlibrary') return;
+    if (author) authorSet.add(author);
   });
+  authors.value = Array.from(authorSet).sort((a, b) =>
+    a.toLowerCase().localeCompare(b.toLowerCase())
+  );
 
 }
