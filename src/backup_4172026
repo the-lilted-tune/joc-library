@@ -4,20 +4,6 @@ import Papa from 'papaparse';
 import bannerLight from './jocdomover.png';
 import bannerDark from './general_colour_joc.png';
 
-import { useFilterUI } from './composables/useFilterUI';
-import { useFilterFunctionality } from './composables/useFilterFunctionality';
-import { useOnMounted } from './composables/useOnMounted';
-import { useReblogContents } from './composables/useReblogContents';
-import { usePages } from './composables/usePages';
-import { useDecorations } from './composables/useDecorations';
-import { useLocalStorage } from './composables/useLocalStorage';
-import { useImages } from './composables/useImages';
-import { useSeriesFunctionality } from './composables/useSeriesFunctionality';
-import { useMobile } from './composables/useMobile';
-import { useThemes } from './composables/useThemes';
-
-
-
   //GOOGLE SHEETS PARSING
   //TUMBLR API FETCHING
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQFbxYYYd3jOVwT98e8Op6iTPSn7lThQ0fFNK0N_mr69lfQvD5dzyDxyvMoWfTemJlqvp1J6KXzdCbl/pub?gid=2112873187&single=true&output=csv";
@@ -32,19 +18,14 @@ const hiddenColumns = ['Character Source'];
 const dropdownOptions = ref({});
 const tagCategories = ref<Record<string, { tags: string[], explicitOnly: boolean }>>({});
 
-const posts = ref([]);
-const seriesOrderMap = ref<Record<string, number[]>>({});
-const currentPage = ref(1);
-
-const masterlistPrefix = 'masterlist:';
 const explicitPrefix = '18+:';
-const seriesPrefix = 'series:';
-const wcPrefix = 'wc:';
 
+const posts = ref([]);
 
+const seriesOrderMap = ref<Record<string, number[]>>({});
 
+//Using Papa library to parse
 onMounted(async() => {
-  //Cached theme and filters
   loadSavedFilters();
   const savedTheme = localStorage.getItem('theme');
   if (savedTheme === 'light') {
@@ -52,89 +33,396 @@ onMounted(async() => {
     document.documentElement.setAttribute('data-theme', 'light');
   }
 
-  //PARSING
+  
+  //Google Sheets
   const response = await fetch(SHEET_URL);
   const csvText = await response.text();
   const parsed = Papa.parse(csvText, { header:true });
+
   const rows = parsed.data;
   const headers = Object.keys(rows[0] || {});
+
+  characterSources.value = {};
+  rows.forEach(r => {
+    const name = r['Character']?.trim();
+    const source = r['Character Source']?.trim();
+    if (name && source) {
+      characterSources.value[name] = source;
+    }
+  });
+
+  dropdownCategories.forEach(cat => {
+    dropdownOptions.value[cat] = rows
+      .map(r => r[cat]?.trim())
+      .filter(Boolean);
+  });
+
+  headers.forEach(header => {
+    const trimmed = header.trim();
+    if (dropdownCategories.includes(trimmed)) return;
+    if (hiddenColumns.includes(trimmed)) return;
+    if (dropdownCategories.includes(trimmed)) return;
+
+    const isExplicit = trimmed.startsWith(explicitPrefix);
+    const displayName = isExplicit
+      ? trimmed.slice(explicitPrefix.length).trim()
+      : trimmed;
+
+    tagCategories.value[displayName] = {
+      tags: rows.map(r => r[header]?.trim()).filter(Boolean),
+      explicitOnly: isExplicit
+    };
+  });
+
+  //Series Order Override
   const orderResponse = await fetch(SERIES_ORDER_URL);
   const orderCsv = await orderResponse.text();
   const orderParsed = Papa.parse(orderCsv, { header: true });
-  const orderMap: Record<string, number[]> = {};
 
-  useOnMounted(API_KEY, BLOG, loading, dropdownCategories, characterSources, hiddenColumns, dropdownOptions, tagCategories, explicitPrefix, seriesOrderMap, posts, openDropdown, rows, headers, orderParsed, orderMap);
+  const orderMap: Record<string, number[]> = {};
+  orderParsed.data.forEach(row => {
+    const series = row['Series Name']?.trim();
+    const order = row['Order']?.trim();
+    if (series && order) {
+      orderMap[series] = order.split(',').map(n => parseInt(n.trim()));
+    }
+  });
+  seriesOrderMap.value = orderMap;
+console.log('Sheet series names:', Object.keys(orderMap));
+
+  //Tumblr API
+  
+  const limit = 50;
+  let offset = 0;
+  let totalPosts = Infinity;
+
+  while (offset < totalPosts) {
+    try {
+    const response = await fetch(
+      `https://api.tumblr.com/v2/blog/${BLOG}.tumblr.com/posts?api_key=${API_KEY}&limit=${limit}&offset=${offset}`
+    );
+    const json = await response.json();
+    totalPosts = json.response.total_posts;
+    posts.value.push(...json.response.posts);
+    offset += limit;
+    } catch (err) {
+    console.error('Failed to fetch posts at offset', offset, err);
+    break;
+    }
+  }
+  
+  loading.value = false;
+
+  //Handling if click is outside dropdown
+  document.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('.dropdown')) {
+      openDropdown.value = null;
+    }
+  });
+
+  
 })
 
-
-
-//FILTER UI
+  //FILTER UI
+  //Dropdowns
 const selectedDropdowns = ref({});
 const openDropdown = ref(null);
+
+function toggleDropdown(cat) {
+  openDropdown.value = openDropdown.value === cat ? null : cat;
+}
+
+function selectOption(cat, value) {
+  selectedDropdowns.value[cat] = value;
+  openDropdown.value = null;
+}
+
+  //Multi-select tags
 const tagStates = ref({});
 const expandedCategories = ref<Record<string, boolean>>({});
 
-const { 
-  toggleDropdown, 
-  selectOption, 
-  toggleExpand, 
-  cycleTag 
-} = useFilterUI(selectedDropdowns, openDropdown, tagStates, expandedCategories);
+function toggleExpand(category: string) {
+  expandedCategories.value[category] = !expandedCategories.value[category];
+}
 
+function cycleTag(tag) {
+  const current = tagStates.value[tag];
+  const newState = {...tagStates.value};
 
+  if (!current) {
+    newState[tag] = 'include';
+  } else if (current === 'include') {
+    newState[tag] = 'exclude';
+  } else {
+    delete newState[tag];
+  }
 
-//SERIES FUNCTIONALITY
-const {
-  getSeriesName,
-  getNumberOfParts
-} = useSeriesFunctionality(seriesPrefix, masterlistPrefix);
-//FILTER FUNCTIONALITY
+  tagStates.value = newState;
+}
+
+  //FILTER FUNCTIONALITY
 const appliedDropdowns = ref({});
 const appliedTagStates = ref({});
 const expandedSeries = ref<Record<string, boolean>>({});
-
-const { 
-  applyFilters, 
-  clearFilters, 
-  filteredPosts, 
-  groupedPosts } = useFilterFunctionality(appliedDropdowns, appliedTagStates, expandedSeries, selectedDropdowns, tagStates, currentPage, dropdownCategories, getSeriesName, seriesOrderMap, posts, masterlistPrefix);
+const masterlistPrefix = 'masterlist:';
 
 
+function applyFilters() {
+  appliedDropdowns.value = { ...selectedDropdowns.value };
+  appliedTagStates.value = { ...tagStates.value };
+  currentPage.value = 1;
+}
 
-//PAGES
+function clearFilters() {
+  selectedDropdowns.value = {};
+  tagStates.value = {};
+  localStorage.removeItem('filters');
+}
+
+const filteredPosts = computed(() => {
+  const includeTags = Object.entries(appliedTagStates.value)
+    .filter(([_, state]) => state === 'include')
+    .map(([tag]) => tag);
+
+  const excludeTags = Object.entries(appliedTagStates.value)
+    .filter(([_, state]) => state === 'exclude')
+    .map(([tag]) => tag);
+
+  return groupedPosts.value.filter(item => {
+    const tags = item.displayPost.tags;
+
+    for (const cat of dropdownCategories) {
+      if (appliedDropdowns.value[cat] && !tags.includes(appliedDropdowns.value[cat])) {
+        return false;
+      }
+    }
+
+    if (includeTags.length > 0) {
+      if (!includeTags.some(tag => tags.includes(tag))) return false;
+    }
+
+    if (excludeTags.length > 0) {
+      if (excludeTags.some(tag => tags.includes(tag))) return false;
+    }
+
+    if (tags.includes('not a fic')) {
+      return false
+    }
+
+    return true;
+  });
+});
+
+const groupedPosts = computed(() => {
+  const seriesMap: Record<string, { name: string, posts: any[], mainPost: any }> = {};
+  const result: any[] = [];
+  const seriesInserted = new Set();
+
+  posts.value.forEach(post => {
+    const seriesNames = getSeriesName(post);
+    
+      if (!seriesNames) {
+      result.push({ type: 'standalone', post });
+      return;
+    }
+
+    for (let i = 0; i < seriesNames.length; i++) {
+      if (!seriesMap[seriesNames[i]]) {
+        seriesMap[seriesNames[i]] = { name: seriesNames[i], posts: [], mainPost: null };
+      }
+      seriesMap[seriesNames[i]].posts.push(post);
+
+      if (!seriesInserted.has(seriesNames[i])) {
+        result.push({ type: 'series', series: seriesMap[seriesNames[i]] });
+        seriesInserted.add(seriesNames[i]);
+      }
+    }
+  });
+
+  Object.values(seriesMap).forEach(s => {
+    s.posts.sort((a, b) => getOriginalTimestamp(a) - getOriginalTimestamp(b));
+
+    const order = seriesOrderMap.value[s.name];
+    if (order) {
+      const original = [...s.posts];
+      const reordered: any[] = [];
+
+      order.forEach(pos => {
+        if (pos >= 1 && pos <= original.length) {
+          reordered.push(original[pos - 1]);
+        }
+      });
+
+      original.forEach((post, i) => {
+        if (!order.includes(i + 1)) {
+          reordered.push(post);
+        }
+      });
+
+      s.posts.splice(0, s.posts.length, ...reordered);
+    }
+
+    const masterlist = s.posts.find(p =>
+      p.tags.some(t => t.startsWith(masterlistPrefix) && t.slice(masterlistPrefix.length).trim() === s.name)
+    );
+    s.mainPost = masterlist || s.posts[0];
+  });
+
+  result.forEach(item => {
+    item.displayPost = item.type === 'series'
+      ? item.series.mainPost
+      : item.post;
+  });
+
+  return result;
+});
+
+function getOriginalTimestamp(post) {
+  if (post.trail && post.trail[0]?.post?.id) {
+    return parseInt(post.trail[0].post.id);
+  }
+  return post.timestamp;
+}
+
+
+  //GET REBLOG CONTENTS (TITLE AND SUMMARY AND WC)
+const wcPrefix = 'wc:';
+
+function getParagraphs(post) {
+  const last = post.trail[post.trail.length - 1];
+  const div = document.createElement('div');
+  div.innerHTML = last.content;
+  const paragraphs = div.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
+
+  return Array.from(paragraphs).filter(p => p.textContent?.trim())
+
+}
+
+function getWordCount(post) {
+  const tag = post.tags.find(t => t.startsWith(wcPrefix));
+  return tag ? tag.slice(wcPrefix.length).trim() : null;
+}
+
+const postContent = computed(() => {
+  const map = {}
+  paginatedPosts.value.forEach(item => {
+    const dp = item.displayPost;
+    if (!map[dp.id_string]) {
+      const paragraphs = getParagraphs(dp);
+      const { images, isThree } = getImages(dp);
+      map[dp.id_string] = {
+        title: paragraphs.length >= 1
+          ? paragraphs[0].textContent?.trim() || 'Untitled'
+          : dp.summary || 'Untitled',
+        summary: paragraphs.length >= 2
+          ? Array.from(paragraphs)
+            .slice(1)
+            .map(p => p.textContent?.trim())
+            .join('\n\n') || 'Untitled'
+          : '',
+        images,
+        isThree,
+        wordCount: getWordCount(dp),
+      }
+    }
+      // Only process chapter posts if the series is expanded
+    if (item.type === 'series' && expandedSeries.value[item.series.name]) {
+      item.series.posts.forEach(post => {
+        if (!map[post.id_string]) {
+          const paragraphs = getParagraphs(post);
+          map[post.id_string] = {
+            title: paragraphs.length >= 1
+              ? paragraphs[0].textContent?.trim() || 'Untitled'
+              : post.summary || 'Untitled',
+            summary: '',
+            images: [],
+            isThree: false,
+            wordCount: null,
+          }
+        }
+      })
+    }
+  })
+  return map
+})
+
+  //PAGES
+const currentPage = ref(1);
 const POSTS_PER_PAGE = 10;
 
-const {
-  totalPages,
-  paginatedPosts,
-  visiblePages,
-  scrollToTop
-} = usePages(POSTS_PER_PAGE, filteredPosts, currentPage);
+const totalPages = computed(() => {
+  return Math.ceil(filteredPosts.value.length / POSTS_PER_PAGE)
+});
+
+const paginatedPosts = computed(() => {
+  const start = (currentPage.value - 1) * POSTS_PER_PAGE;
+  return filteredPosts.value.slice(start, start + POSTS_PER_PAGE);
+})
+
+const visiblePages = computed(() => {
+  const total = totalPages.value;
+  const current = currentPage.value;
+  const pages: (number | '...')[] = [];
+
+  if (total <= 8) {
+    for (let i = 1; i <= total; i++) pages.push(i);
+    return pages;
+  }
+
+  pages.push(1);
+
+  if (current > 3) pages.push('...');
+
+  // Pages around current
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 2);
+  for (let i = start; i <= end; i++) pages.push(i);
+
+  if (current < total - 3) pages.push('...');
+
+  // Always show last page
+  pages.push(total);
+
+  return pages;
+});
+
+
+function scrollToTop() {
+  const el = document.getElementById('posts-top');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
 
 
 
-//IMAGES
-const {
-  getImages,
-  retryImage
-} = useImages();
-//GET REBLOG CONTENTS (TITLE AND SUMMARY AND WC)
-const { postContent } = useReblogContents(wcPrefix, paginatedPosts, getImages, expandedSeries);
 
+  //TAG HIGHLIGHTING
+function getTagClass(tag) {
+  for (const cat of dropdownCategories) {
+    if(appliedDropdowns.value[cat] === tag) return 'highlight-text';
+  }
+  
+  const state = appliedTagStates.value[tag]
+  if (state) return 'highlight-text'
+  
+  return ''
+}
 
-
-//TAGHIGHLIGHTING, LINK TO TUMBLR, AND DISPLAY CHARACTER NAMES
-const {
-  getTagClass,
-  openPost,
-  capitalize,
-  formatTag
-} = useDecorations(dropdownCategories, appliedDropdowns, appliedTagStates, characterSources);
-
-
-
-//LOCAL STORAGE
-const loadSavedFilters = useLocalStorage(selectedDropdowns, tagStates, appliedDropdowns, appliedTagStates);
+  //LOCAL STORAGE
+function loadSavedFilters() {
+  try {
+    const saved = localStorage.getItem('filters');
+    if (!saved) return;
+    const data = JSON.parse(saved);
+    selectedDropdowns.value = data.dropdowns || {};
+    tagStates.value = data.tagStates || {};
+    appliedDropdowns.value = { ...(data.dropdowns || {}) };
+    appliedTagStates.value = { ...(data.tagStates || {}) };
+  } catch {
+    // Storage not available
+  }
+}
 
 watch([selectedDropdowns, tagStates], () => {
   try {
@@ -147,23 +435,107 @@ watch([selectedDropdowns, tagStates], () => {
   }
 }, {deep: true});
 
+  //IMAGES
+function getImages(post) {
+  const div = document.createElement('div')
+  div.innerHTML = post.trail[0].content_raw
 
-//MOBILE
-const {
-  handleTouchStart,
-  handleTouchEnd
-} = useMobile();
+  const images = div.querySelectorAll('img')
+  const results = []
 
+  for (const img of images) {
+    const width = parseInt(img.getAttribute('data-orig-width'))
+    const height = parseInt(img.getAttribute('data-orig-height'))
+    
+    results.push({
+        src: img.src,
+        type: (width / height) < 1.8 ? 'square' : 'wide'
+    })
+  }
 
+  const squareCount = (results.filter(img => img.type === 'square').length)
+  if (squareCount === 1) {
+    results[0].type = 'wide'
+  }
 
-//DARK MODE
+  return {
+    images: results,
+    isThree: squareCount % 3 === 0
+  }
+}
+
+function retryImage(event) {
+  const img = event.target;
+  const retries = parseInt(img.dataset.retries || '0');
+  if (retries < 3) {
+    img.dataset.retries = String(retries + 1);
+    setTimeout(() => {
+      img.src = img.src;
+    }, 1000 * (retries + 1));
+  }
+}
+
+  //Series Functionality
+const seriesPrefix = 'series:';
+
+function getSeriesName(post) {
+  const seriesTags = post.tags
+    .filter(t => t.startsWith(seriesPrefix) || t.startsWith(masterlistPrefix))
+    .map(tag => {
+      if (tag.startsWith(seriesPrefix)) return tag.slice(seriesPrefix.length).trim();
+      return tag.slice(masterlistPrefix.length).trim();
+    });
+  return seriesTags.length > 0 ? seriesTags : null;
+  
+}
+
+function getNumberOfParts(item) {
+  return item.series.posts.length - (item.series.mainPost.tags.some(t => t.startsWith(masterlistPrefix)) ? 1 : 0)
+}
+
+  //LINK TO TUMBLR
+function openPost(url) {
+  window.open(url, '_blank');
+}
+
+  //MOBILE STUFF
+let touchStartY = 0;
+
+function handleTouchStart(e) {
+  touchStartY = e.touches[0].clientY;
+}
+
+function handleTouchEnd(e, url) {
+  const diff = Math.abs(e.changedTouches[0].clientY - touchStartY);
+  if (diff < 5) {
+    window.open(url, '_blank');
+  }
+}
+
+  //DISPLAY CHARACTER NAMES
+function capitalize(str) {
+  return str.split(' ').map(word => word[0].toUpperCase() + word.slice(1)).join(' ').split("'").map(word => word[0].toUpperCase() + word.slice(1)).join("'");
+}
+
+function formatTag(tag) {
+  const source = characterSources.value[tag];
+  if (source) {
+    return `${capitalize(tag)} (${source})`;
+  }
+  return tag;
+}
+
+  //DARK MODE
 const lightMode = ref(false);
 
-const toggleTheme = useThemes(lightMode);
+function toggleTheme() {
+  lightMode.value = !lightMode.value;
+  const theme = lightMode.value ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+}
 
 </script>
-
-
 
 <template>
   <div class="all-container">
