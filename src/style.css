@@ -1,4 +1,26 @@
 :root {
+
+
+  .teleported-suggestions {
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    color: var(--font-color);
+    max-height: 170px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--font);
+  }
+  .teleported-suggestions li {
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .teleported-suggestions li.highlighted {
+    background: var(--hover-color);
+  }
+
+
   --nuetral-color: none;
   --include-color: #4a5c3e;
   --exclude-color: #6b3a3a;

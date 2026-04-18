@@ -281,9 +281,10 @@ onBeforeUnmount(() => {
 
 function handleOutsideClick(e: PointerEvent) {
   const target = e.target as HTMLElement;
-  if (!target.closest('.author-search')) {
-    showAuthorDropdown.value = false;
+  if (target.closest('.author-search') || target.closest('.teleported-suggestions')) {
+    return;
   }
+  showAuthorDropdown.value = false;
 }
 
 function onFocus() {
@@ -298,6 +299,36 @@ function onInput(e: Event) {
   authorQuery.value = (e.target as HTMLInputElement).value;
   showAuthorDropdown.value = true;
 }
+
+const inputRef = ref<HTMLInputElement | null>(null);
+const dropdownStyle = ref({});
+
+function updateDropdownPosition() {
+  if (!inputRef.value) return;
+  const rect = inputRef.value.getBoundingClientRect();
+  dropdownStyle.value = {
+    position: 'fixed',
+    top: `${rect.bottom}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    zIndex: 9999,
+  };
+}
+
+// Update position whenever dropdown opens, or window resizes/scrolls
+watch(showAuthorDropdown, (open) => {
+  if (open) updateDropdownPosition();
+});
+
+onMounted(() => {
+  window.addEventListener('scroll', updateDropdownPosition, true);
+  window.addEventListener('resize', updateDropdownPosition);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', updateDropdownPosition, true);
+  window.removeEventListener('resize', updateDropdownPosition);
+});
+
 
 
 </script>
@@ -429,34 +460,39 @@ function onInput(e: Event) {
   <!-- Author search MOBILE-->
   <div class="author-search-container mobile-only">
     <p class="heading">Author Search!</p>
-    <div class="author-search">
+    <div class="author-search" ref="searchContainerRef">
       <input
+        ref="inputRef"
         class="author-search-input"
         type="text"
         placeholder="Search authors..."
+        :value="authorQuery"
+        @input="onInput"
         @focus="onFocus"
-        @blur="onBlur"
         autocomplete="off"
         autocapitalize="none"
         autocorrect="off"
         spellcheck="false"
-        :value="authorQuery"
-        @input="onInput"
       />
 
-      <ul v-if="showAuthorDropdown && authorSuggestions.length" class="suggestions">
-        <li
-          v-for="(author, i) in authorSuggestions"
-          :key="author"
-          :class="{ highlighted: i === highlightedAuthorIndex }"
-          @mousedown.prevent="pickAuthor(author)"
-          @mouseenter="highlightedAuthorIndex = i"
+      <Teleport to="body">
+        <ul
+          v-if="showAuthorDropdown && authorSuggestions.length"
+          class="suggestions teleported-suggestions"
+          :style="dropdownStyle"
         >
-          {{ author }}
-        </li>
-      </ul>
+          <li
+            v-for="(author, i) in authorSuggestions"
+            :key="author"
+            :class="{ highlighted: i === highlightedAuthorIndex }"
+            @mousedown.prevent="pickAuthor(author)"
+            @mouseenter="highlightedAuthorIndex = i"
+          >
+            {{ author }}
+          </li>
+        </ul>
+      </Teleport>
     </div>
-
   </div>
   <div class="filter-btns-container">
   <div class="go-and-clear-container">
@@ -1286,7 +1322,7 @@ function onInput(e: Event) {
     border-color: var(--border-color);
     color: var(--font-color);
     max-height: 240px;
-    overflow-y: auto;
+    overflow-y: visible;
     margin: 0;
     padding: 0;
     list-style: none;
