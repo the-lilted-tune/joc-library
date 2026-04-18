@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import Papa from 'papaparse';
 import bannerLight from './jocdomover.png';
 import bannerDark from './general_colour_joc.png';
@@ -271,6 +271,34 @@ const hasAnyFilterActive = computed(() => {
          !!appliedAuthor.value;
 });
 
+// Instead of onBlur handler, close on outside click
+onMounted(() => {
+  document.addEventListener('pointerdown', handleOutsideClick);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleOutsideClick);
+});
+
+function handleOutsideClick(e: PointerEvent) {
+  const target = e.target as HTMLElement;
+  if (!target.closest('.author-search')) {
+    showAuthorDropdown.value = false;
+  }
+}
+
+function onFocus() {
+  console.log('FOCUS fired, setting dropdown true');
+  showAuthorDropdown.value = true;
+}
+function onBlur() {
+  console.log('BLUR fired');
+}
+
+function onInput(e: Event) {
+  authorQuery.value = (e.target as HTMLInputElement).value;
+  showAuthorDropdown.value = true;
+}
+
 
 </script>
 
@@ -404,15 +432,16 @@ const hasAnyFilterActive = computed(() => {
     <div class="author-search">
       <input
         class="author-search-input"
-        v-model="authorQuery"
         type="text"
         placeholder="Search authors..."
-        @focus="showAuthorDropdown = true"
-        @blur="handleAuthorBlur"
-        @keydown.down.prevent="moveAuthorSelection(1)"
-        @keydown.up.prevent="moveAuthorSelection(-1)"
-        @keydown.enter.prevent="pickHighlightedAuthor"
-        @keydown.esc="showAuthorDropdown = false"
+        @focus="onFocus"
+        @blur="onBlur"
+        autocomplete="off"
+        autocapitalize="none"
+        autocorrect="off"
+        spellcheck="false"
+        :value="authorQuery"
+        @input="onInput"
       />
 
       <ul v-if="showAuthorDropdown && authorSuggestions.length" class="suggestions">
@@ -676,11 +705,15 @@ const hasAnyFilterActive = computed(() => {
           type="text"
           placeholder="Search authors..."
           @focus="showAuthorDropdown = true"
-          @blur="handleAuthorBlur"
+          @input="showAuthorDropdown = true"
           @keydown.down.prevent="moveAuthorSelection(1)"
           @keydown.up.prevent="moveAuthorSelection(-1)"
           @keydown.enter.prevent="pickHighlightedAuthor"
           @keydown.esc="showAuthorDropdown = false"
+          autocomplete="off"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck="false"
         />
 
         <ul v-if="showAuthorDropdown && authorSuggestions.length" class="suggestions">
