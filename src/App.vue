@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref, computed, onMounted, watch, nextTick} from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import Papa from 'papaparse';
 import bannerLight from './jocdomover.png';
 import bannerDark from './general_colour_joc.png';
@@ -53,13 +53,17 @@ onMounted(async() => {
   }
 
   //PARSING
-  const response = await fetch(SHEET_URL);
-  const csvText = await response.text();
+  const [response, orderResponse] = await Promise.all([
+    fetch(SHEET_URL),
+    fetch(SERIES_ORDER_URL)
+  ]);
+  const [csvText, orderCsv] = await Promise.all([
+    response.text(),
+    orderResponse.text()
+  ]);
   const parsed = Papa.parse(csvText, { header:true });
   const rows = parsed.data;
   const headers = Object.keys(rows[0] || {});
-  const orderResponse = await fetch(SERIES_ORDER_URL);
-  const orderCsv = await orderResponse.text();
   const orderParsed = Papa.parse(orderCsv, { header: true });
   const orderMap: Record<string, number[]> = {};
 
