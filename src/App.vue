@@ -66,8 +66,9 @@ onMounted(async() => {
   const headers = Object.keys(rows[0] || {});
   const orderParsed = Papa.parse(orderCsv, { header: true });
   const orderMap: Record<string, number[]> = {};
+  const authorSet = new Set<string>();
 
-  useOnMounted(API_KEY, BLOG, loading, dropdownCategories, characterSources, hiddenColumns, dropdownOptions, tagCategories, explicitPrefix, seriesOrderMap, posts, openDropdown, rows, headers, orderParsed, orderMap);
+  useOnMounted(API_KEY, BLOG, loading, dropdownCategories, characterSources, hiddenColumns, dropdownOptions, tagCategories, explicitPrefix, seriesOrderMap, posts, openDropdown, rows, headers, orderParsed, orderMap, authorSet);
 })
 
 

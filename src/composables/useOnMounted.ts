@@ -1,4 +1,36 @@
-export async function useOnMounted(API_KEY, BLOG, loading, dropdownCategories, characterSources, hiddenColumns, dropdownOptions, tagCategories, explicitPrefix, seriesOrderMap, posts, openDropdown, rows, headers, orderParsed, orderMap) {
+async function fetchWithRetry(url: string, retries = 3, delay = 500): Promise<any> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const json = await response.json();
+      if (json.meta?.status && json.meta.status >= 400) {
+        throw new Error(`Tumblr API ${json.meta.status}: ${json.meta.msg}`);
+      }
+      return json;
+    } catch (err) {
+      if (attempt === retries) throw err;
+      await new Promise(r => setTimeout(r, delay * Math.pow(2, attempt)));
+    }
+  }
+}
+
+async function runInBatches<T>(
+  tasks: (() => Promise<T>)[],
+  batchSize = 4
+): Promise<T[]> {
+  const results: T[] = [];
+  for (let i = 0; i < tasks.length; i += batchSize) {
+    const batch = tasks.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(t => t()));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+export async function useOnMounted(API_KEY, BLOG, loading, dropdownCategories, characterSources, hiddenColumns, dropdownOptions, tagCategories, explicitPrefix, seriesOrderMap, posts, openDropdown, rows, headers, orderParsed, orderMap, authorSet) {
   //GOOGLE SHEETS
   characterSources.value = {};
   rows.forEach(r => {
@@ -39,8 +71,9 @@ export async function useOnMounted(API_KEY, BLOG, loading, dropdownCategories, c
   // TUMBLR API (added cache and parallel 4/17/2026)
   const limit = 50;
   const CACHE_KEY = `tumblr_posts_${BLOG}`;
-  const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+  const CACHE_TTL = 10 * 60 * 1000;
 
+  // Show cached data instantly
   try {
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
@@ -52,53 +85,67 @@ export async function useOnMounted(API_KEY, BLOG, loading, dropdownCategories, c
     }
   } catch {}
 
-  const buildUrl = (offset) =>
+  const buildUrl = (offset: number) =>
     `https://api.tumblr.com/v2/blog/${BLOG}.tumblr.com/posts?api_key=${API_KEY}&limit=${limit}&offset=${offset}`;
 
+  let firstJson;
   try {
-    const firstResp = await fetch(buildUrl(0));
-    const firstJson = await firstResp.json();
-    const totalPosts = firstJson.response.total_posts;
-    const firstBatch = firstJson.response.posts;
+    firstJson = await fetchWithRetry(buildUrl(0));
+  } catch (err) {
+    console.error('Initial fetch failed', err);
+    loading.value = false;
+    return;
+  }
 
-    if (!posts.value.length) {
-      posts.value = [...firstBatch];
-      loading.value = false;
-    }
+  const totalPosts = firstJson.response.total_posts;
+  const firstBatch = firstJson.response.posts;
 
-    const requests = [];
-    for (let offset = limit; offset < totalPosts; offset += limit) {
-      requests.push(
-        fetch(buildUrl(offset))
-          .then(r => r.json())
-          .then(j => j.response.posts)
-          .catch(err => {
-            console.error('Failed at offset', offset, err);
-            return [];
-          })
-      );
-    }
+  if (!posts.value.length) {
+    posts.value = [...firstBatch];
+    loading.value = false;
+  }
 
-    const remaining = await Promise.all(requests);
-    const allPosts = [...firstBatch, ...remaining.flat()];
-    posts.value = allPosts;
+  const tasks: (() => Promise<any[] | null>)[] = [];
+  for (let offset = limit; offset < totalPosts; offset += limit) {
+    tasks.push(() =>
+      fetchWithRetry(buildUrl(offset))
+        .then(j => j.response.posts)
+        .catch(err => {
+          console.error('Gave up on offset', offset, err);
+          return null;
+        })
+    );
+  }
 
+  const remaining = await runInBatches(tasks, 4);
+
+  const failedCount = remaining.filter(r => r === null).length;
+  const successfulPages = remaining.filter(r => r !== null) as any[][];
+  const allPosts = [...firstBatch, ...successfulPages.flat()];
+
+  posts.value = allPosts;
+  loading.value = false;
+
+  if (failedCount === 0) {
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify({
         timestamp: Date.now(),
         data: allPosts
       }));
-    } catch {
-    }
-  } catch (err) {
-    console.error('Failed to fetch Tumblr posts', err);
+    } catch {}
   }
-
-  loading.value = false;
 
   document.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('.dropdown')) {
       openDropdown.value = null;
     }
   });
+
+  posts.value.forEach(post => {
+    const originalAuthor = post.trail?.[0]?.blog?.name;
+    if (originalAuthor) {
+      authorSet.add(originalAuthor);
+    }
+  });
+
 }
